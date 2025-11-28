@@ -99,7 +99,7 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 	}
 
 	// Generate JWT with email + role
-	token, err := utils.GenerateToken(found.Email, found.Role)
+	token, err := utils.GenerateToken(found.ID, found.Email, found.Role)
 	if err != nil {
 		return "", errors.New("failed to generate token")
 	}

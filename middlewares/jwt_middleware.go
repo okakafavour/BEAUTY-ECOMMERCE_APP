@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// use the same secret as token generation
 var JwtSecret = []byte(func() string {
 	s := os.Getenv("JWT_SECRET")
 	if s == "" {
@@ -52,7 +52,22 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		c.Set("claims", claims)
+		userIDHex, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id missing or not a string"})
+			c.Abort()
+			return
+		}
+
+		userID, err := primitive.ObjectIDFromHex(userIDHex)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user_id"})
+			c.Abort()
+			return
+		}
+
+		// Store ObjectID directly in context
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }
