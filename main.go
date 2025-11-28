@@ -10,10 +10,8 @@ import (
 
 func main() {
 	godotenv.Load()
-
-	config.ConnectDB()
+	config.ConnectDB() // sets global DB
 	router := gin.Default()
-
-	routes.SetUpRoutes(router)
+	routes.SetUpRoutes(router) // no second argument needed
 	router.Run(":8080")
 }

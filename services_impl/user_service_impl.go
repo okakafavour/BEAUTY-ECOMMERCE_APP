@@ -7,6 +7,7 @@ import (
 	"beauty-ecommerce-backend/utils"
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,11 +25,17 @@ func NewUserService() services.UserService {
 	}
 }
 
+// -------------------- REGISTER --------------------
 func (s *userServiceImpl) Register(user models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Check if email exists
+	// Validate basic fields
+	if user.Email == "" || user.Password == "" {
+		return errors.New("email and password are required")
+	}
+
+	// Check if email already exists
 	count, err := s.collection.CountDocuments(ctx, bson.M{"email": user.Email})
 	if err != nil {
 		return errors.New("failed to check existing user")
@@ -36,6 +43,18 @@ func (s *userServiceImpl) Register(user models.User) error {
 
 	if count > 0 {
 		return errors.New("email already registered")
+	}
+
+	// Set default role if not provided
+	if user.Role == "" {
+		user.Role = "USER"
+	} else {
+		user.Role = strings.ToUpper(user.Role)
+	}
+
+	// Accept only ADMIN or USER
+	if user.Role != "ADMIN" && user.Role != "USER" {
+		return errors.New("invalid role (allowed: ADMIN, USER)")
 	}
 
 	// Hash password
@@ -48,7 +67,7 @@ func (s *userServiceImpl) Register(user models.User) error {
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
-	// Insert into DB
+	// Insert user
 	_, err = s.collection.InsertOne(ctx, user)
 	if err != nil {
 		return errors.New("failed to create user")
@@ -57,16 +76,17 @@ func (s *userServiceImpl) Register(user models.User) error {
 	return nil
 }
 
+// -------------------- LOGIN --------------------
 func (s *userServiceImpl) Login(email, password string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var found models.User
 
-	// Check if user exists
+	// Find user by email
 	err := s.collection.FindOne(ctx, bson.M{"email": email}).Decode(&found)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("invalid email or password")
 		}
 		return "", errors.New("failed to find user")
@@ -78,8 +98,8 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 		return "", errors.New("invalid email or password")
 	}
 
-	// Generate JWT
-	token, err := utils.GenerateToken(found.Email)
+	// Generate JWT with email + role
+	token, err := utils.GenerateToken(found.Email, found.Role)
 	if err != nil {
 		return "", errors.New("failed to generate token")
 	}

@@ -1,43 +1,43 @@
 package routes
 
 import (
+	"beauty-ecommerce-backend/config"
 	"beauty-ecommerce-backend/controllers"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/repositories"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func SetUpRoutes(router *gin.Engine, db *mongo.Database) {
+func SetUpRoutes(r *gin.Engine) {
 
-	// ===== user routes =====
+	// ----------------------------------------
+	// AUTH ROUTES  (Signup & Login)
+	// ----------------------------------------
 	controllers.InitUserController()
-	router.POST("/signup", controllers.Register)
-	router.POST("/login", controllers.Login)
 
-	// ===== product routes =====
+	r.POST("/signup", controllers.Register)
+	r.POST("/login", controllers.Login)
+
+	// ----------------------------------------
+	// PRODUCT ROUTES
+	// ----------------------------------------
+	db := config.DB
 	productRepo := repositories.NewProductRepository(db)
 	productService := servicesimpl.NewProductService(productRepo)
+	productController := controllers.NewProductController(productService)
 
-	// Initialize singleton controller
-	controllers.InitProductController(productService)
-	productController := controllers.ProductControllerSingleton()
+	// Public
+	r.GET("/products", productController.GetAllProducts)
+	r.GET("/products/:id", productController.GetProductByID)
 
-	// Product routes
-	products := router.Group("/products")
+	// Admin Protected
+	adminRoutes := r.Group("/products")
+	adminRoutes.Use(middlewares.JWTMiddleware(), middlewares.AdminMiddleware())
 	{
-		// Public routes
-		products.GET("/", productController.GetAllProducts)
-		products.GET("/:id", productController.GetProductByID)
-
-		// Admin-only routes
-		products.Use(middlewares.AdminMiddleware())
-		{
-			products.POST("/", productController.CreateProduct)
-			products.PUT("/:id", productController.UpdateProduct)
-			products.DELETE("/:id", productController.DeleteProduct)
-		}
+		adminRoutes.POST("", productController.CreateProduct)
+		adminRoutes.PUT("/:id", productController.UpdateProduct)
+		adminRoutes.DELETE("/:id", productController.DeleteProduct)
 	}
 }

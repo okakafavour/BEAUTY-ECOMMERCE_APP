@@ -7,10 +7,19 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-func GenerateToken(email string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+func GenerateToken(email string, role string) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "defaultsecret"
+	}
+
+	claims := jwt.MapClaims{
 		"email": email,
-		"exp":   time.Now().Add(time.Hour * 72).Unix(),
-	})
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+		"role":  role,
+		"exp":   time.Now().Add(72 * time.Hour).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	return token.SignedString([]byte(secret))
 }
