@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var JwtSecret = []byte(func() string {
@@ -59,15 +58,9 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userID, err := primitive.ObjectIDFromHex(userIDHex)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user_id"})
-			c.Abort()
-			return
-		}
+		// Store HEX string (not ObjectID)
+		c.Set("user_id", userIDHex)
 
-		// Store ObjectID directly in context
-		c.Set("user_id", userID)
 		c.Next()
 	}
 }

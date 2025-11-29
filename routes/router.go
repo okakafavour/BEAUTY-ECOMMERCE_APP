@@ -46,12 +46,25 @@ func SetUpRoutes(r *gin.Engine) {
 	controllers.InitCartController(cartService)
 
 	cartRoutes := r.Group("/cart")
-	cartRoutes.Use(middlewares.JWTMiddleware()) // user must be logged in
+	cartRoutes.Use(middlewares.JWTMiddleware())
 	{
 		cartRoutes.POST("", controllers.CreateCart)
 		cartRoutes.GET("", controllers.GetCart)
 		cartRoutes.PUT("/:id", controllers.UpdateCartItem)
 		cartRoutes.DELETE("/:id", controllers.DeleteCartItem)
 		cartRoutes.DELETE("", controllers.ClearCart)
+	}
+
+	orderRepo := repositories.NewOrderRepository(db)
+	orderService := servicesimpl.NewOrderService(orderRepo, productRepo)
+	controllers.InitOrderController(orderService)
+
+	orderRoutes := r.Group("/orders")
+	orderRoutes.Use(middlewares.JWTMiddleware())
+	{
+		orderRoutes.POST("", controllers.CreateOrder)
+		orderRoutes.GET("", controllers.GetOrders)
+		orderRoutes.GET("/:id", controllers.GetOrderByID)
+
 	}
 }

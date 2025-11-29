@@ -12,7 +12,5 @@ type CartService interface {
 	UpdateCartItem(cartItem models.CartItem) (models.CartItem, error)
 	DeleteCartItem(cartItemID primitive.ObjectID) error
 	ClearCart(userID primitive.ObjectID) error
-
-	// NEW METHOD — your controller needs this!
-	// GetCartByUserID(userID string) ([]models.CartItem, error)
+	GetCartItemByID(cartItemID primitive.ObjectID) (*models.CartItem, error) // needed for controller
 }

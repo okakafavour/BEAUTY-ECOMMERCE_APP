@@ -52,3 +52,15 @@ func (r *CartRepository) DeleteCartItem(ctx context.Context, cartItemID primitiv
 	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": cartItemID})
 	return err
 }
+
+func (r *CartRepository) FindByID(id primitive.ObjectID) (*models.CartItem, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var cartItem models.CartItem
+	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&cartItem)
+	if err != nil {
+		return nil, err
+	}
+	return &cartItem, nil
+}

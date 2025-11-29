@@ -58,3 +58,7 @@ func (c *CartServiceImpl) ClearCart(userID primitive.ObjectID) error {
 	}
 	return nil
 }
+
+func (s *CartServiceImpl) GetCartItemByID(cartItemID primitive.ObjectID) (*models.CartItem, error) {
+	return s.cartRepo.FindByID(cartItemID)
+}
