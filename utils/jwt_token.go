@@ -4,21 +4,23 @@ import (
 	"os"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GenerateToken(userID primitive.ObjectID, email string, role string) (string, error) {
+// GenerateToken creates a JWT token for a user
+func GenerateToken(userID primitive.ObjectID, email, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "defaultsecret"
+		secret = "defaultsecret" // fallback, but should always be set in env
 	}
 
 	claims := jwt.MapClaims{
 		"user_id": userID.Hex(),
 		"email":   email,
 		"role":    role,
-		"exp":     time.Now().Add(72 * time.Hour).Unix(),
+		"exp":     jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
+		"iat":     jwt.NewNumericDate(time.Now()),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

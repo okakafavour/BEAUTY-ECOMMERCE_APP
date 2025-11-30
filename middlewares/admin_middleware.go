@@ -2,15 +2,26 @@ package middlewares
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var JwtSecret []byte
+
+func init() {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "defaultsecret" // fallback
+	}
+	JwtSecret = []byte(secret)
+}
+
+// AdminMiddleware ensures the user is authenticated and optionally checks for admin role
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
@@ -43,17 +54,20 @@ func AdminMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// STORE CLAIMS HERE (fix)
+		// Extract user_id and role safely
+		userID, ok := claims["user_id"].(string)
+		if !ok || userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing user_id in token"})
+			c.Abort()
+			return
+		}
+
+		role, _ := claims["role"].(string) // role can be empty
+
+		// Store claims in context
+		c.Set("user_id", userID)
+		c.Set("role", role)
 		c.Set("claims", claims)
-
-		// Optional: Extract user ID & role
-		if userID, ok := claims["user_id"].(string); ok {
-			c.Set("user_id", userID)
-		}
-
-		if role, ok := claims["role"].(string); ok {
-			c.Set("role", role)
-		}
 
 		c.Next()
 	}

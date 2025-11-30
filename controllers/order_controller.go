@@ -9,54 +9,69 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// -------------------------------
+// Shared package-level OrderService
+// -------------------------------
 var orderService services.OrderService
 
+// Initialize the service once at app startup
 func InitOrderController(os services.OrderService) {
 	orderService = os
 }
 
+// -------------------------------
+// Create Order
+// POST /orders
+// -------------------------------
 func CreateOrder(c *gin.Context) {
 	var order models.Order
 
-	// Bind JSON
 	if err := c.ShouldBindJSON(&order); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Get user ID from JWT middleware
-	rawUserID, _ := c.Get("user_id")
-	userIDString := rawUserID.(string)
-
-	// Convert to ObjectID
-	userID, err := primitive.ObjectIDFromHex(userIDString)
-	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid user id"})
-		return
-	}
-
-	// Assign
-	order.UserID = userID
-
-	// Call service
-	createdOrder, err := orderService.CreateOrder(order)
-	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(201, createdOrder)
-}
-
-// GET /orders (get orders for logged in user)
-func GetOrders(c *gin.Context) {
-	userIDHex, exists := c.Get("user_id")
+	rawUserID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	userID, _ := primitive.ObjectIDFromHex(userIDHex.(string))
+	userIDStr, ok := rawUserID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	order.UserID = userID
+
+	createdOrder, err := orderService.CreateOrder(order)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, createdOrder)
+}
+
+// -------------------------------
+// Get Orders for logged-in user
+// GET /orders
+// -------------------------------
+func GetOrders(c *gin.Context) {
+	rawUserID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, _ := primitive.ObjectIDFromHex(rawUserID.(string))
 
 	orders, err := orderService.GetOrdersByUser(userID)
 	if err != nil {
@@ -67,7 +82,10 @@ func GetOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"orders": orders})
 }
 
+// -------------------------------
+// Get single order
 // GET /orders/:id
+// -------------------------------
 func GetOrderByID(c *gin.Context) {
 	orderID, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
@@ -82,4 +100,39 @@ func GetOrderByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"order": order})
+}
+
+// -------------------------------
+// Cancel order
+// PUT /orders/:id/cancel
+// -------------------------------
+func CancelOrder(c *gin.Context) {
+	orderID, err := primitive.ObjectIDFromHex(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	rawUserID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	userID, err := primitive.ObjectIDFromHex(rawUserID.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	updatedOrder, err := orderService.CancelOrder(orderID, userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Order cancelled successfully",
+		"order":   updatedOrder,
+	})
 }

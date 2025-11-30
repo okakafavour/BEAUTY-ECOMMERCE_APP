@@ -1,9 +1,11 @@
 package repositories
 
 import (
-	"beauty-ecommerce-backend/models"
 	"context"
+	"fmt"
 	"time"
+
+	"beauty-ecommerce-backend/models"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -27,31 +29,58 @@ func (r *OrderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	return err
 }
 
-func (r *OrderRepository) GetOrdersByUser(ctx context.Context, userID string) ([]models.Order, error) {
-	cursor, err := r.collection.Find(ctx, bson.M{"user_id": userID})
+func (r *OrderRepository) FindByID(orderID primitive.ObjectID) (*models.Order, error) {
+	var order models.Order
+	err := r.collection.FindOne(context.Background(), bson.M{"_id": orderID}).Decode(&order)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
-
-	var orders []models.Order
-	for cursor.Next(ctx) {
-		var order models.Order
-		if err := cursor.Decode(&order); err != nil {
-			return nil, err
-		}
-		orders = append(orders, order)
-	}
-	return orders, nil
+	return &order, nil
 }
 
-func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID string) (models.Order, error) {
+func (r *OrderRepository) FindByReference(reference string) (*models.Order, error) {
 	var order models.Order
-	objID, _ := primitive.ObjectIDFromHex(orderID)
-	err := r.collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&order)
-	return order, err
+	err := r.collection.FindOne(context.Background(), bson.M{"payment_reference": reference}).Decode(&order)
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
 }
 
+func (r *OrderRepository) UpdateOrder(order *models.Order) error {
+	_, err := r.collection.UpdateOne(
+		context.Background(),
+		bson.M{"_id": order.ID},
+		bson.M{"$set": order},
+	)
+	return err
+}
+
+func (r *OrderRepository) UpdateOrderReference(orderID, reference string) error {
+	id, err := primitive.ObjectIDFromHex(orderID)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"_id": id}
+	update := bson.M{
+		"$set": bson.M{
+			"payment_reference": reference,
+			"status":            "pending",
+			"updated_at":        time.Now(),
+		},
+	}
+	res, err := r.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("no order found to update reference")
+	}
+	return nil
+}
+
+// In repositories/order_repository.go
 func (r *OrderRepository) FindByUserID(userID primitive.ObjectID) ([]models.Order, error) {
 	ctx := context.Background()
 	filter := bson.M{"user_id": userID}
@@ -67,17 +96,4 @@ func (r *OrderRepository) FindByUserID(userID primitive.ObjectID) ([]models.Orde
 	}
 
 	return orders, nil
-}
-
-func (r *OrderRepository) FindByID(orderID primitive.ObjectID) (*models.Order, error) {
-	ctx := context.Background()
-	filter := bson.M{"_id": orderID}
-
-	var order models.Order
-	err := r.collection.FindOne(ctx, filter).Decode(&order)
-	if err != nil {
-		return nil, err
-	}
-
-	return &order, nil
 }

@@ -1,21 +1,15 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
-
-var JwtSecret = []byte(func() string {
-	s := os.Getenv("JWT_SECRET")
-	if s == "" {
-		s = "defaultsecret"
-	}
-	return s
-}())
 
 func JWTMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -35,9 +29,19 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		tokenStr := parts[1]
 
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			secret = "defaultsecret"
+		}
+
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-			return JwtSecret, nil
+			// Ensure HS256 is used
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(secret), nil
 		})
+
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
@@ -46,20 +50,24 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Cannot read token claims"})
 			c.Abort()
 			return
 		}
 
-		userIDHex, ok := claims["user_id"].(string)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id missing or not a string"})
-			c.Abort()
-			return
+		// Check expiration manually
+		if expVal, ok := claims["exp"].(float64); ok {
+			if time.Unix(int64(expVal), 0).Before(time.Now()) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
+				c.Abort()
+				return
+			}
 		}
 
-		// Store HEX string (not ObjectID)
-		c.Set("user_id", userIDHex)
+		// Set user ID in context
+		if userID, ok := claims["user_id"].(string); ok {
+			c.Set("user_id", userID)
+		}
 
 		c.Next()
 	}
