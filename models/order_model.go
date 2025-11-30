@@ -15,6 +15,7 @@ type Order struct {
 	PaymentReference string             `bson:"payment_reference" json:"payment_reference"`
 	CreatedAt        time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt        time.Time          `bson:"updated_at" json:"updated_at"`
+	TotalPrice       float64            `bson:"total_price" json:"total_price"`
 }
 
 type OrderItem struct {

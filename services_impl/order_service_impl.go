@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -136,4 +137,38 @@ func (s *orderServiceImpl) MarkOrderAsPaid(reference string) error {
 
 func (s *orderServiceImpl) SaveOrderReference(orderID string, reference string) error {
 	return s.orderRepo.UpdateOrderReference(orderID, reference)
+}
+
+func (s *orderServiceImpl) GetAllOrders() ([]models.Order, error) {
+	return s.orderRepo.FindAll()
+}
+
+func (s *orderServiceImpl) UpdateOrderStatus(orderID primitive.ObjectID, status string) error {
+	update := bson.M{
+		"status":     status,
+		"updated_at": time.Now(),
+	}
+	return s.orderRepo.Update(orderID, update)
+}
+
+func (s *orderServiceImpl) GetSalesAnalytics() (map[string]interface{}, error) {
+	orders, err := s.orderRepo.FindAll()
+	if err != nil {
+		return nil, err
+	}
+
+	totalRevenue := 0.0
+	statusCount := map[string]int{}
+	for _, o := range orders {
+		totalRevenue += o.TotalPrice
+		statusCount[o.Status]++
+	}
+
+	data := map[string]interface{}{
+		"total_orders":  len(orders),
+		"total_revenue": totalRevenue,
+		"status_count":  statusCount,
+	}
+
+	return data, nil
 }

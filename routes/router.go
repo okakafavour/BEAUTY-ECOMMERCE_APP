@@ -11,38 +11,65 @@ import (
 )
 
 func SetUpRoutes(r *gin.Engine) {
+	db := config.DB
 
-	// ----------------------------------------
-	// AUTH ROUTES (Signup & Login)
-	// ----------------------------------------
+	// --------------------------
+	// SERVICES
+	// --------------------------
+	productRepo := repositories.NewProductRepository(db)
+	productService := servicesimpl.NewProductService(productRepo)
+
+	orderRepo := repositories.NewOrderRepository(db)
+	orderService := servicesimpl.NewOrderService(orderRepo, productRepo)
+
+	userService := servicesimpl.NewUserService()
+
+	// --------------------------
+	// ADMIN CONTROLLER
+	// --------------------------
+	adminController := controllers.NewAdminController(productService, orderService, userService)
+
+	// --------------------------
+	// ADMIN ROUTES
+	// --------------------------
+	adminRoutes := r.Group("/admin")
+	adminRoutes.Use(middlewares.JWTMiddleware(), middlewares.AdminMiddleware())
+	{
+		// Products
+		adminRoutes.POST("/products", adminController.CreateProduct)
+		adminRoutes.PUT("/products/:id", adminController.UpdateProduct)
+		adminRoutes.DELETE("/products/:id", adminController.DeleteProduct)
+
+		// Orders
+		adminRoutes.GET("/orders", adminController.ListOrders)
+		adminRoutes.PATCH("/orders/:id/status", adminController.UpdateOrderStatus)
+
+		// Users
+		adminRoutes.GET("/users", adminController.ListUsers)
+		adminRoutes.PATCH("/users/:id", adminController.UpdateUser)
+		adminRoutes.DELETE("/users/:id", adminController.DeleteUser)
+
+		// Analytics (optional)
+		adminRoutes.GET("/analytics/sales", adminController.SalesAnalytics)
+	}
+
+	// --------------------------
+	// PUBLIC PRODUCT ROUTES
+	// --------------------------
+	productController := controllers.NewProductController(productService)
+	r.GET("/products", productController.GetAllProducts)
+	r.GET("/products/:id", productController.GetProductByID)
+
+	// --------------------------
+	// AUTH ROUTES
+	// --------------------------
 	controllers.InitUserController()
 	r.POST("/signup", controllers.Register)
 	r.POST("/login", controllers.Login)
 
-	// ----------------------------------------
-	// PRODUCT ROUTES
-	// ----------------------------------------
-	db := config.DB
-	productRepo := repositories.NewProductRepository(db)
-	productService := servicesimpl.NewProductService(productRepo)
-	productController := controllers.NewProductController(productService)
-
-	// Public routes
-	r.GET("/products", productController.GetAllProducts)
-	r.GET("/products/:id", productController.GetProductByID)
-
-	// Admin protected routes
-	adminRoutes := r.Group("/products")
-	adminRoutes.Use(middlewares.JWTMiddleware(), middlewares.AdminMiddleware())
-	{
-		adminRoutes.POST("", productController.CreateProduct)
-		adminRoutes.PUT("/:id", productController.UpdateProduct)
-		adminRoutes.DELETE("/:id", productController.DeleteProduct)
-	}
-
-	// ----------------------------------------
+	// --------------------------
 	// CART ROUTES
-	// ----------------------------------------
+	// --------------------------
 	cartRepo := repositories.NewCartRepository(db)
 	cartService := servicesimpl.NewCartService(cartRepo)
 	controllers.InitCartController(cartService)
@@ -57,15 +84,11 @@ func SetUpRoutes(r *gin.Engine) {
 		cartRoutes.DELETE("", controllers.ClearCart)
 	}
 
-	// ----------------------------------------
+	// --------------------------
 	// ORDER & PAYMENT ROUTES
-	// ----------------------------------------
-	orderRepo := repositories.NewOrderRepository(db)
-	orderService := servicesimpl.NewOrderService(orderRepo, productRepo)
-
-	// Initialize controllers with orderService
+	// --------------------------
 	controllers.InitOrderController(orderService)
-	controllers.InitPaymentController(orderService) // MUST be called AFTER orderService exists
+	controllers.InitPaymentController(orderService)
 
 	orderRoutes := r.Group("/orders")
 	orderRoutes.Use(middlewares.JWTMiddleware())
@@ -74,20 +97,11 @@ func SetUpRoutes(r *gin.Engine) {
 		orderRoutes.GET("", controllers.GetOrders)
 		orderRoutes.GET("/:id", controllers.GetOrderByID)
 		orderRoutes.PUT("/:id/cancel", controllers.CancelOrder)
-		orderRoutes.POST("/:id/pay", controllers.InitializePayment) // Payment initialization
+		orderRoutes.POST("/:id/pay", controllers.InitializePayment)
 	}
 
-	// Payment success callback
+	// --------------------------
+	// PAYMENT CALLBACK
+	// --------------------------
 	r.GET("/payment/success", controllers.PaymentSuccess)
-
-	// ----------------------------------------
-	// DEBUG ROUTE (Optional, confirm payment service is initialized)
-	// ----------------------------------------
-	r.GET("/debug/payment_service", func(c *gin.Context) {
-		if controllers.PaymentOrderService == nil {
-			c.JSON(500, gin.H{"status": "nil"})
-		} else {
-			c.JSON(200, gin.H{"status": "initialized"})
-		}
-	})
 }

@@ -1,25 +1,17 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var JwtSecret []byte
+var JwtSecret []byte // set from main.go
 
-func init() {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "defaultsecret" // fallback
-	}
-	JwtSecret = []byte(secret)
-}
-
-// AdminMiddleware ensures the user is authenticated and optionally checks for admin role
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -31,40 +23,67 @@ func AdminMiddleware() gin.HandlerFunc {
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
 			c.Abort()
 			return
 		}
 
 		tokenStr := parts[1]
 
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return JwtSecret, nil
 		})
-		if err != nil || !token.Valid {
+		if err != nil {
+			fmt.Println("JWT parse error:", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
+		if !token.Valid {
+			fmt.Println("Token is invalid")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			c.Abort()
+			return
+		}
+
+		// Validate claims
+		roleVal, roleOk := claims["role"]
+		userIDVal, idOk := claims["user_id"]
+		expVal, expOk := claims["exp"]
+
+		if !roleOk || !idOk || !expOk {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token missing required claims"})
+			c.Abort()
+			return
+		}
+
+		role, ok := roleVal.(string)
+		userID, ok2 := userIDVal.(string)
+		expFloat, ok3 := expVal.(float64)
+
+		if !ok || !ok2 || !ok3 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 			c.Abort()
 			return
 		}
 
-		// Extract user_id and role safely
-		userID, ok := claims["user_id"].(string)
-		if !ok || userID == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or missing user_id in token"})
+		if int64(expFloat) < time.Now().Unix() {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has expired"})
 			c.Abort()
 			return
 		}
 
-		role, _ := claims["role"].(string) // role can be empty
+		if strings.ToLower(role) != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+			c.Abort()
+			return
+		}
 
-		// Store claims in context
 		c.Set("user_id", userID)
 		c.Set("role", role)
 		c.Set("claims", claims)

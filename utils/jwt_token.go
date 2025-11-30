@@ -12,7 +12,7 @@ import (
 func GenerateToken(userID primitive.ObjectID, email, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "defaultsecret" // fallback, but should always be set in env
+		secret = "defaultsecret"
 	}
 
 	claims := jwt.MapClaims{
