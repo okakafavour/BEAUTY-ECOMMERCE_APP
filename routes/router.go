@@ -126,4 +126,16 @@ func SetUpRoutes(r *gin.Engine) {
 		}
 	}
 
+	wishlistRepo := repositories.NewWishlistRepository(db.Collection("wishlists"))
+	wishlistService := servicesimpl.NewWishlistService(wishlistRepo)
+	wishlistController := controllers.NewWishlistController(wishlistService)
+
+	wishlistRoutes := r.Group("/wishlist")
+	wishlistRoutes.Use(middlewares.JWTMiddleware())
+	{
+		wishlistRoutes.GET("", wishlistController.GetWishlist)
+		wishlistRoutes.POST("/add", wishlistController.AddToWishlist)
+		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
+	}
+
 }
