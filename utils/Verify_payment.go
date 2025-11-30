@@ -26,7 +26,7 @@ func VerifyPaystackPayment(reference string) (*PaystackVerifyResponse, error) {
 	baseURL := os.Getenv("PAYSTACK_BASE_URL")
 
 	if secret == "" || baseURL == "" {
-		return nil, fmt.Errorf("Paystack secret or base URL not set")
+		return nil, fmt.Errorf("paystack secret or base URL not set")
 	}
 
 	url := fmt.Sprintf("%s/transaction/verify/%s", baseURL, reference)

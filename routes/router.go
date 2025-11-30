@@ -5,6 +5,7 @@ import (
 	"beauty-ecommerce-backend/controllers"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/repositories"
+	"beauty-ecommerce-backend/services"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
@@ -104,4 +105,25 @@ func SetUpRoutes(r *gin.Engine) {
 	// PAYMENT CALLBACK
 	// --------------------------
 	r.GET("/payment/success", controllers.PaymentSuccess)
+
+	// Reviews
+	reviewRepo := repositories.NewReviewRepository(db)
+	reviewService := services.NewReviewService(reviewRepo /*, orderRepo optional*/)
+	reviewController := controllers.NewReviewController(reviewService)
+
+	reviewRoutes := r.Group("/reviews")
+	{
+		// Public: list reviews for a product
+		reviewRoutes.GET("/:productId", reviewController.GetProductReviews)
+
+		// Protected routes (user must be logged in)
+		reviewRoutesAuth := reviewRoutes.Group("")
+		reviewRoutesAuth.Use(middlewares.JWTMiddleware())
+		{
+			reviewRoutesAuth.POST("", reviewController.CreateReview)
+			reviewRoutesAuth.PUT("/:id", reviewController.UpdateReview)
+			reviewRoutesAuth.DELETE("/:id", reviewController.DeleteReview)
+		}
+	}
+
 }

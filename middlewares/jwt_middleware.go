@@ -11,6 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// JWTMiddleware verifies JWT token and sets claims in Gin context
 func JWTMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -28,14 +29,12 @@ func JWTMiddleware() gin.HandlerFunc {
 		}
 
 		tokenStr := parts[1]
-
 		secret := os.Getenv("JWT_SECRET")
 		if secret == "" {
 			secret = "defaultsecret"
 		}
 
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-			// Ensure HS256 is used
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -55,19 +54,15 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Check expiration manually
-		if expVal, ok := claims["exp"].(float64); ok {
-			if time.Unix(int64(expVal), 0).Before(time.Now()) {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
-				c.Abort()
-				return
-			}
+		// Optional: check expiration manually
+		if exp, ok := claims["exp"].(float64); ok && time.Unix(int64(exp), 0).Before(time.Now()) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
+			c.Abort()
+			return
 		}
 
-		// Set user ID in context
-		if userID, ok := claims["user_id"].(string); ok {
-			c.Set("user_id", userID)
-		}
+		fmt.Println("JWT Claims:", claims) // ✅ debugging log
+		c.Set("user", claims)
 
 		c.Next()
 	}

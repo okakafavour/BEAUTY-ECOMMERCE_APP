@@ -62,9 +62,16 @@ func (s *userServiceImpl) Register(user models.User) error {
 	user.CreatedAt = time.Now()
 	user.UpdatedAt = time.Now()
 
-	_, err = s.collection.InsertOne(ctx, user)
+	// Insert user and get inserted ID
+	res, err := s.collection.InsertOne(ctx, user)
 	if err != nil {
 		return errors.New("failed to create user")
+	}
+
+	// Ensure inserted ID is ObjectID
+	oid, ok := res.InsertedID.(primitive.ObjectID)
+	if ok {
+		user.ID = oid
 	}
 
 	return nil
@@ -89,6 +96,7 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 		return "", errors.New("invalid email or password")
 	}
 
+	// Generate JWT with correct MongoDB user ID
 	token, err := utils.GenerateToken(found.ID, found.Email, found.Role)
 	if err != nil {
 		return "", errors.New("failed to generate token")
@@ -98,8 +106,6 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 }
 
 // -------------------- ADMIN METHODS --------------------
-
-// Get all users
 func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -117,7 +123,6 @@ func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
 	return users, nil
 }
 
-// Update user
 func (s *userServiceImpl) UpdateUser(userID string, update models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -131,7 +136,7 @@ func (s *userServiceImpl) UpdateUser(userID string, update models.User) error {
 		"$set": bson.M{
 			"name":       update.Name,
 			"email":      update.Email,
-			"role":       update.Role,
+			"role":       strings.ToUpper(update.Role),
 			"updated_at": time.Now(),
 		},
 	}
@@ -146,7 +151,6 @@ func (s *userServiceImpl) UpdateUser(userID string, update models.User) error {
 	return nil
 }
 
-// Delete user
 func (s *userServiceImpl) DeleteUser(userID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
