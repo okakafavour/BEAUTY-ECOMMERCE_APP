@@ -115,7 +115,6 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 	return res.Data.AuthorizationURL, reference, nil
 }
 
-// MarkOrderAsPaid sets order status to 'paid' after verification
 func (s *orderServiceImpl) MarkOrderAsPaid(reference string) error {
 	order, err := s.orderRepo.FindByReference(reference)
 	if err != nil {
@@ -123,7 +122,7 @@ func (s *orderServiceImpl) MarkOrderAsPaid(reference string) error {
 	}
 
 	if order.Status == "paid" {
-		return nil // already paid, no error
+		return nil
 	}
 
 	if order.Status != "pending" {
@@ -135,7 +134,6 @@ func (s *orderServiceImpl) MarkOrderAsPaid(reference string) error {
 	return s.orderRepo.UpdateOrder(order)
 }
 
-// SaveOrderReference saves a generated payment reference before initializing Paystack payment
 func (s *orderServiceImpl) SaveOrderReference(orderID string, reference string) error {
 	return s.orderRepo.UpdateOrderReference(orderID, reference)
 }
