@@ -2,9 +2,11 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
+	"beauty-ecommerce-backend/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,12 +37,54 @@ func NewAdminController(ps services.ProductService, os services.OrderService, us
 //////////////////////////////
 
 func (ac *AdminController) CreateProduct(c *gin.Context) {
-	var product models.Product
-	if err := c.ShouldBindJSON(&product); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// Parse form-data fields
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	priceStr := c.PostForm("price")
+	stockStr := c.PostForm("stock")
+	category := c.PostForm("category")
+
+	if name == "" || priceStr == "" || stockStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name, price, and stock are required"})
 		return
 	}
 
+	// Convert price and stock to numbers
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid price"})
+		return
+	}
+
+	stock, err := strconv.Atoi(stockStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid stock"})
+		return
+	}
+
+	// Handle image upload
+	imageURL := ""
+	file, err := c.FormFile("image") // "image" is the key for the file
+	if err == nil && file != nil {
+		uploadedURL, err := utils.UploadToCloudinary(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image: " + err.Error()})
+			return
+		}
+		imageURL = uploadedURL
+	}
+
+	// Create product object
+	product := models.Product{
+		Name:        name,
+		Description: description,
+		Price:       price,
+		Stock:       stock,
+		Category:    category,
+		ImageURL:    imageURL,
+	}
+
+	// Save product using service
 	if err := ac.ProductService.CreateProduct(&product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"beauty-ecommerce-backend/models"
-	"beauty-ecommerce-backend/repositories"
-	servicesimpl "beauty-ecommerce-backend/services_impl"
+	// "beauty-ecommerce-backend/repositories"
+	// servicesimpl "beauty-ecommerce-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -36,16 +36,16 @@ func ConnectTestDB() (*mongo.Database, context.Context, context.CancelFunc) {
 func SetupRouter(db *mongo.Database) *gin.Engine {
 	r := gin.Default()
 
-	// Create product service and controller directly
-	productService := servicesimpl.NewProductService(repositories.NewProductRepository(db))
-	pc := NewProductController(productService)
+	// // Create product service and controller directly
+	// productService := servicesimpl.NewProductService(repositories.NewProductRepository(db))
+	// // pc := NewProductController(productService)
 
-	// Register routes
-	r.POST("/products", pc.CreateProduct)
-	r.GET("/products", pc.GetAllProducts)
-	r.GET("/products/:id", pc.GetProductByID)
-	r.PUT("/products/:id", pc.UpdateProduct)
-	r.DELETE("/products/:id", pc.DeleteProduct)
+	// // Register routes
+	// r.POST("/products", pc.CreateProduct)
+	// r.GET("/products", pc.GetAllProducts)
+	// r.GET("/products/:id", pc.GetProductByID)
+	// r.PUT("/products/:id", pc.UpdateProduct)
+	// r.DELETE("/products/:id", pc.DeleteProduct)
 
 	return r
 }

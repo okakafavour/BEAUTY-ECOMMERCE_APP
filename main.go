@@ -21,7 +21,10 @@ func main() {
 		log.Println("✅ .env loaded successfully")
 	}
 
-	// Set middleware JWT secret after loading .env
+	// Debug print Cloudinary URL
+	fmt.Println("CLOUDINARY_URL:", os.Getenv("CLOUDINARY_URL"))
+
+	// Set middleware JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set:", string(middlewares.JwtSecret))
 

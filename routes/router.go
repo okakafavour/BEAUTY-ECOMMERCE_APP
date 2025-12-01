@@ -54,12 +54,16 @@ func SetUpRoutes(r *gin.Engine) {
 		adminRoutes.GET("/analytics/sales", adminController.SalesAnalytics)
 	}
 
-	// --------------------------
+	/// --------------------------
 	// PUBLIC PRODUCT ROUTES
 	// --------------------------
-	productController := controllers.NewProductController(productService)
+	controllers.InitProductController(productService)
+	productController := controllers.ProductControllerSingleton()
+
 	r.GET("/products", productController.GetAllProducts)
 	r.GET("/products/:id", productController.GetProductByID)
+	r.POST("/products", productController.CreateProduct)    // JSON-based creation
+	r.PUT("/products/:id", productController.UpdateProduct) // JSON-based update
 
 	// --------------------------
 	// AUTH ROUTES
@@ -106,17 +110,17 @@ func SetUpRoutes(r *gin.Engine) {
 	// --------------------------
 	r.GET("/payment/success", controllers.PaymentSuccess)
 
-	// Reviews
+	// --------------------------
+	// REVIEW ROUTES
+	// --------------------------
 	reviewRepo := repositories.NewReviewRepository(db)
 	reviewService := services.NewReviewService(reviewRepo /*, orderRepo optional*/)
 	reviewController := controllers.NewReviewController(reviewService)
 
 	reviewRoutes := r.Group("/reviews")
 	{
-		// Public: list reviews for a product
 		reviewRoutes.GET("/:productId", reviewController.GetProductReviews)
 
-		// Protected routes (user must be logged in)
 		reviewRoutesAuth := reviewRoutes.Group("")
 		reviewRoutesAuth.Use(middlewares.JWTMiddleware())
 		{
@@ -126,6 +130,9 @@ func SetUpRoutes(r *gin.Engine) {
 		}
 	}
 
+	// --------------------------
+	// WISHLIST ROUTES
+	// --------------------------
 	wishlistRepo := repositories.NewWishlistRepository(db.Collection("wishlists"))
 	wishlistService := servicesimpl.NewWishlistService(wishlistRepo)
 	wishlistController := controllers.NewWishlistController(wishlistService)
@@ -137,5 +144,4 @@ func SetUpRoutes(r *gin.Engine) {
 		wishlistRoutes.POST("/add", wishlistController.AddToWishlist)
 		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
 	}
-
 }
