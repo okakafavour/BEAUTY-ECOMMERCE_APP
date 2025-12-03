@@ -64,6 +64,7 @@ func SetUpRoutes(r *gin.Engine) {
 	r.GET("/products/:id", productController.GetProductByID)
 	r.POST("/products", productController.CreateProduct)    // JSON-based creation
 	r.PUT("/products/:id", productController.UpdateProduct) // JSON-based update
+	r.DELETE("/products/:id/image", productController.DeleteProduct)
 
 	// --------------------------
 	// AUTH ROUTES

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,55 +39,98 @@ func ProductControllerSingleton() *ProductController {
 
 // -------------------- CREATE PRODUCT --------------------
 func (pc *ProductController) CreateProduct(c *gin.Context) {
+	// 1️⃣ Bind JSON (ignore error, we may receive form-data)
 	var req struct {
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
 		Price       float64 `json:"price"`
 		Stock       int     `json:"stock"`
 		Category    string  `json:"category"`
-		ImageURL    string  `json:"image_url"`
+		ImageURL    string  `json:"image_url"` // For remote URL
+	}
+	_ = c.ShouldBindJSON(&req)
+
+	// 2️⃣ Get values from form-data if present (overwrite JSON values)
+	name := req.Name
+	description := req.Description
+	price := req.Price
+	stock := req.Stock
+	category := req.Category
+
+	if formName := c.PostForm("name"); formName != "" {
+		name = formName
+	}
+	if formDescription := c.PostForm("description"); formDescription != "" {
+		description = formDescription
+	}
+	if formPrice := c.PostForm("price"); formPrice != "" {
+		fmt.Sscanf(formPrice, "%f", &price)
+	}
+	if formStock := c.PostForm("stock"); formStock != "" {
+		fmt.Sscanf(formStock, "%d", &stock)
+	}
+	if formCategory := c.PostForm("category"); formCategory != "" {
+		category = formCategory
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON: " + err.Error()})
-		return
-	}
-
-	if req.Name == "" || req.Price <= 0 || req.Stock < 0 {
+	if name == "" || price <= 0 || stock < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name, price, and stock are required"})
 		return
 	}
 
-	// Force upload
-	fmt.Println("⚙️ Uploading image to Cloudinary:", req.ImageURL)
-	cloudImageURL := ""
-	if req.ImageURL != "" {
-		url, err := utils.UploadRemoteImage(req.ImageURL)
+	// 3️⃣ Handle image upload (form-data file or remote URL)
+	var imageURL, imageID string
+
+	// Form-data file takes priority
+	file, err := c.FormFile("image")
+	if err == nil {
+		url, publicID, err := utils.UploadToCloudinaryWithID(file)
 		if err != nil {
-			fmt.Println("❌ Cloudinary upload failed:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image: " + err.Error()})
 			return
 		}
-		cloudImageURL = url
-		fmt.Println("✅ Cloudinary URL:", cloudImageURL)
+		imageURL = url
+		imageID = publicID
+	} else if req.ImageURL != "" {
+		// Remote image URL
+		url, publicID, err := utils.UploadRemoteImageWithID(req.ImageURL)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload remote image: " + err.Error()})
+			return
+		}
+		imageURL = url
+		imageID = publicID
 	}
 
+	// 4️⃣ Verify that we got a valid public ID
+	if imageURL != "" && imageID == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve Cloudinary public ID"})
+		return
+	}
+
+	fmt.Println("DEBUG: ImageURL:", imageURL, "ImageID:", imageID)
+
+	// 5️⃣ Create product object
 	product := models.Product{
-		Name:        req.Name,
-		Description: req.Description,
-		Price:       req.Price,
-		Stock:       req.Stock,
-		Category:    req.Category,
-		ImageURL:    cloudImageURL,
+		Name:        name,
+		Description: description,
+		Price:       price,
+		Stock:       stock,
+		Category:    category,
+		ImageURL:    imageURL,
+		ImageID:     imageID, // Guaranteed to save public ID
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 
+	fmt.Println("✅ Saving Product:", product.Name, "ImageID:", imageID)
+
+	// 6️⃣ Save product
 	if err := pc.productService.CreateProduct(&product); err != nil {
-		fmt.Println("❌ Product save failed:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	fmt.Println("✅ Product created:", product)
 	c.JSON(http.StatusCreated, gin.H{"product": product})
 }
 
@@ -164,18 +208,33 @@ func (pc *ProductController) GetProductByID(c *gin.Context) {
 }
 
 // -------------------- DELETE PRODUCT --------------------
-// -------------------- DELETE PRODUCT --------------------
 func (pc *ProductController) DeleteProduct(c *gin.Context) {
 	id := c.Param("id")
 
-	// Check if product exists
 	product, err := pc.productService.GetProductByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
 		return
 	}
 
-	// Delete product (this will also remove image from Cloudinary)
+	// ------------------- DELETE IMAGE -------------------
+	if product.ImageID != "" {
+		// Preferred: delete by public ID
+		if err := utils.DeleteImageFromCloudinary(product.ImageID); err != nil {
+			fmt.Println("❌ Failed to delete image by ImageID:", err)
+		} else {
+			fmt.Println("✅ Deleted image from Cloudinary by ImageID:", product.ImageID)
+		}
+	} else if product.ImageURL != "" {
+		// Fallback: extract public ID from URL and delete
+		if err := utils.DeleteImageFromCloudinaryByURL(product.ImageURL); err != nil {
+			fmt.Println("❌ Failed to delete image by ImageURL:", err)
+		} else {
+			fmt.Println("✅ Deleted image from Cloudinary by URL:", product.ImageURL)
+		}
+	}
+
+	// ------------------- DELETE PRODUCT -------------------
 	if err := pc.productService.DeleteProduct(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete product: " + err.Error()})
 		return
