@@ -6,7 +6,6 @@ import (
 	"beauty-ecommerce-backend/utils"
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -92,7 +91,7 @@ func (s *orderServiceImpl) CancelOrder(orderID primitive.ObjectID, userID primit
 }
 
 // InitializePayment generates a reference and calls Paystack
-func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID, email string) (string, string, error) {
+func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID, email string) (clientSecret string, paymentID string, err error) {
 	order, err := s.orderRepo.FindByID(orderID)
 	if err != nil {
 		return "", "", errors.New("order not found")
@@ -102,24 +101,25 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 		return "", "", errors.New("you are not allowed to pay for this order")
 	}
 
-	reference := fmt.Sprintf("PSK_REF_%s", orderID.Hex())
-
-	res, err := utils.PaystackInitialize(email, order.Total, reference)
+	// Create Stripe PaymentIntent
+	pi, err := utils.CreateStripePaymentIntent(order.Total, "ngn", orderID.Hex())
 	if err != nil {
 		return "", "", err
 	}
 
-	// Save the reference in DB
-	order.PaymentReference = reference
-	s.orderRepo.UpdateOrder(order)
+	// Save PaymentIntent ID in order
+	order.PaymentReference = pi.ID
+	if err := s.orderRepo.UpdateOrderReference(orderID.Hex(), pi.ID); err != nil {
+		return "", "", errors.New("failed to save payment reference")
+	}
 
-	return res.Data.AuthorizationURL, reference, nil
+	return pi.ClientSecret, pi.ID, nil
 }
 
-func (s *orderServiceImpl) MarkOrderAsPaid(reference string) error {
-	order, err := s.orderRepo.FindByReference(reference)
+func (s *orderServiceImpl) MarkOrderAsPaid(paymentID string) error {
+	order, err := s.orderRepo.FindByReference(paymentID)
 	if err != nil {
-		return errors.New("order not found for this reference")
+		return errors.New("order not found for this payment reference")
 	}
 
 	if order.Status == "paid" {

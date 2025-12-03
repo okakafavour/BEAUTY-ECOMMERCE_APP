@@ -4,6 +4,8 @@ import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
+	"beauty-ecommerce-backend/utils"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +38,17 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	subject := "Welcome to Beauty Shop!"
+	plainText := "Hello " + user.Name + ", welcome to Beauty Shop! We're excited to have you on board."
+	htmlContent := "<h1>Hello " + user.Name + "</h1><p>Welcome to Beauty Shop! We're excited to have you on board.</p>"
+
+	// Send email asynchronously
+	go func() {
+		if err := utils.SendEmail(user.Email, subject, plainText, htmlContent); err != nil {
+			fmt.Println("Failed to send welcome email:", err)
+		}
+	}()
 
 	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
 }

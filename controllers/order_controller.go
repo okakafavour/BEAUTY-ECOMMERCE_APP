@@ -3,6 +3,8 @@ package controllers
 import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
+	"beauty-ecommerce-backend/utils"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -57,7 +59,24 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Send response first
 	c.JSON(http.StatusCreated, createdOrder)
+
+	// Send order confirmation email asynchronously
+	go func() {
+		// Fetch user details from UserService
+		user, err := userService.GetUserByID(userID) // <- You need to implement this in UserService
+		if err != nil {
+			fmt.Println("Failed to fetch user for email:", err)
+			return
+		}
+
+		subject, html := utils.OrderConfirmationEmail(user.Name, createdOrder.ID.Hex())
+		err = utils.SendEmail(user.Email, subject, "", html)
+		if err != nil {
+			fmt.Println("Failed to send order confirmation email:", err)
+		}
+	}()
 }
 
 // -------------------------------

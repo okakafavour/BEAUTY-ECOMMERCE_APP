@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"beauty-ecommerce-backend/models"
-	// "beauty-ecommerce-backend/repositories"
-	// servicesimpl "beauty-ecommerce-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

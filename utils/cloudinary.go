@@ -104,3 +104,21 @@ func UploadRemoteImage(remoteURL string) (string, error) {
 	fmt.Println("✅ Uploaded image to Cloudinary:", uploadResult.SecureURL)
 	return uploadResult.SecureURL, nil
 }
+
+var ctx = context.Background()
+
+func DeleteImageFromCloudinary(publicID string) error {
+	cld, err := cloudinary.NewFromParams(
+		"YOUR_CLOUD_NAME",
+		"YOUR_API_KEY",
+		"YOUR_API_SECRET",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize Cloudinary: %w", err)
+	}
+
+	_, err = cld.Upload.Destroy(ctx, uploader.DestroyParams{
+		PublicID: publicID,
+	})
+	return err
+}

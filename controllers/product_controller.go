@@ -162,3 +162,28 @@ func (pc *ProductController) GetProductByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"product": product})
 }
+
+// -------------------- DELETE PRODUCT --------------------
+// -------------------- DELETE PRODUCT --------------------
+func (pc *ProductController) DeleteProduct(c *gin.Context) {
+	id := c.Param("id")
+
+	// Check if product exists
+	product, err := pc.productService.GetProductByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+
+	// Delete product (this will also remove image from Cloudinary)
+	if err := pc.productService.DeleteProduct(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete product: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "product deleted successfully",
+		"productId": product.ID.Hex(),
+		"name":      product.Name,
+	})
+}

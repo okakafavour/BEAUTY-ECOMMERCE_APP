@@ -169,3 +169,16 @@ func (s *userServiceImpl) DeleteUser(userID string) error {
 	}
 	return nil
 }
+
+func (s *userServiceImpl) GetUserByID(id primitive.ObjectID) (models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := s.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	if err != nil {
+		return models.User{}, errors.New("user not found")
+	}
+
+	return user, nil
+}

@@ -108,7 +108,7 @@ func SetUpRoutes(r *gin.Engine) {
 	// --------------------------
 	// PAYMENT CALLBACK
 	// --------------------------
-	r.GET("/payment/success", controllers.PaymentSuccess)
+	// r.GET("/payment/success", controllers.PaymentSuccess)
 
 	// --------------------------
 	// REVIEW ROUTES

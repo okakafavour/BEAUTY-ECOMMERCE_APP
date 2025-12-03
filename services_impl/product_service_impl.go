@@ -4,7 +4,9 @@ import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/repositories"
 	"beauty-ecommerce-backend/services"
+	"beauty-ecommerce-backend/utils"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -73,11 +75,27 @@ func (s *productServiceImpl) UpdateProduct(id string, product models.Product) er
 }
 
 // DELETE PRODUCT
+// DELETE PRODUCT
 func (s *productServiceImpl) DeleteProduct(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return errors.New("invalid product ID")
 	}
 
+	// Fetch the product first
+	product, err := s.productRepo.FindByID(objID)
+	if err != nil {
+		return errors.New("product not found")
+	}
+
+	// Delete image from Cloudinary if exists
+	if product.ImageID != "" {
+		if err := utils.DeleteImageFromCloudinary(product.ImageID); err != nil {
+			fmt.Println("⚠️ failed to delete image from Cloudinary:", err)
+			// Don't block deletion, just log
+		}
+	}
+
+	// Delete product from DB
 	return s.productRepo.Delete(objID)
 }
