@@ -181,3 +181,27 @@ func (r *OrderRepository) MarkPaid(paymentReference string) error {
 
 	return nil
 }
+
+func (r *OrderRepository) MarkRefunded(paymentReference string) error {
+	filter := bson.M{"payment_reference": paymentReference}
+	update := bson.M{
+		"$set": bson.M{
+			"status":     "refunded",
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(context.Background(), filter, update)
+	return err
+}
+
+func (r *OrderRepository) MarkDisputed(paymentReference string) error {
+	filter := bson.M{"payment_reference": paymentReference}
+	update := bson.M{
+		"$set": bson.M{
+			"status":     "disputed",
+			"updated_at": time.Now(),
+		},
+	}
+	_, err := r.collection.UpdateOne(context.Background(), filter, update)
+	return err
+}

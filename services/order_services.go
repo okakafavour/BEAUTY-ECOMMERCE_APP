@@ -21,4 +21,6 @@ type OrderService interface {
 	GetAllOrders() ([]models.Order, error)
 	UpdateOrderStatus(orderID primitive.ObjectID, status string) error
 	GetSalesAnalytics() (map[string]interface{}, error) // optional
+	MarkOrderAsRefunded(paymentReference string) error
+	MarkOrderAsDisputed(paymentReference string) error
 }

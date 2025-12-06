@@ -183,3 +183,11 @@ func (s *orderServiceImpl) GetSalesAnalytics() (map[string]interface{}, error) {
 func (s *orderServiceImpl) MarkOrderAsFailed(paymentReference string) error {
 	return s.orderRepo.MarkFailed(paymentReference)
 }
+
+func (s *orderServiceImpl) MarkOrderAsRefunded(paymentReference string) error {
+	return s.orderRepo.MarkRefunded(paymentReference)
+}
+
+func (s *orderServiceImpl) MarkOrderAsDisputed(paymentReference string) error {
+	return s.orderRepo.MarkDisputed(paymentReference)
+}

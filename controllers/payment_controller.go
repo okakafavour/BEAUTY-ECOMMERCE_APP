@@ -52,14 +52,12 @@ func InitializePayment(c *gin.Context) {
 		return
 	}
 
-	// Create Stripe PaymentIntent with metadata
 	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.Total, "ngn", orderIDHex, user.Email, user.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Save PaymentIntent ID to order
 	err = PaymentOrderService.SaveOrderReference(orderIDHex, pi.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save payment reference"})
@@ -75,7 +73,6 @@ func InitializePayment(c *gin.Context) {
 	})
 }
 
-// POST /payment/webhook
 // POST /payment/webhook
 func StripeWebhook(c *gin.Context) {
 	webhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
@@ -128,25 +125,20 @@ func StripeWebhook(c *gin.Context) {
 			fmt.Println("❌ Failed to parse PaymentIntent:", err)
 			break
 		}
-
 		fmt.Println("✅ Payment succeeded:", pi.ID)
-
 		if err := PaymentOrderService.MarkOrderAsPaid(pi.ID); err != nil {
 			fmt.Println("❌ Failed to mark order as paid:", err)
 		} else {
 			fmt.Println("🎉 Order marked as PAID")
 		}
 
-		// Send confirmation email asynchronously
 		go func() {
 			userEmail := pi.Metadata["user_email"]
 			userName := pi.Metadata["user_name"]
 			orderID := pi.Metadata["order_id"]
-
 			if userEmail == "" {
 				userEmail = "okakafavour81@gmail.com" // fallback for Postman test
 			}
-
 			if err := utils.SendConfirmationEmail(userEmail, userName, orderID); err != nil {
 				fmt.Println("❌ Failed to send confirmation email:", err)
 			}
@@ -158,29 +150,59 @@ func StripeWebhook(c *gin.Context) {
 			fmt.Println("❌ Failed to parse failed PaymentIntent:", err)
 			break
 		}
-
 		fmt.Println("❌ Payment FAILED:", pi.ID)
-
 		if err := PaymentOrderService.MarkOrderAsFailed(pi.ID); err != nil {
 			fmt.Println("❌ Failed to mark order as FAILED:", err)
 		} else {
 			fmt.Println("Order marked as FAILED")
 		}
 
-		// Send failed payment email asynchronously
 		go func() {
 			userEmail := pi.Metadata["user_email"]
 			userName := pi.Metadata["user_name"]
 			orderID := pi.Metadata["order_id"]
-
 			if userEmail == "" {
 				userEmail = "okakafavour81@gmail.com" // fallback for Postman test
 			}
-
 			if err := utils.SendFailedPaymentEmail(userEmail, userName, orderID); err != nil {
 				fmt.Println("❌ Failed to send failed payment email:", err)
 			}
 		}()
+
+	case "charge.refunded":
+		var charge stripe.Charge
+		if err := json.Unmarshal(event.Data.Raw, &charge); err == nil {
+			fmt.Println("💸 Payment refunded:", charge.ID)
+			if charge.PaymentIntent != nil {
+				if err := PaymentOrderService.MarkOrderAsRefunded(charge.PaymentIntent.ID); err != nil {
+					fmt.Println("❌ Failed to mark order as refunded:", err)
+				} else {
+					fmt.Println("🎉 Order marked as REFUNDED")
+				}
+			} else {
+				fmt.Println("❌ No PaymentIntent associated with this charge")
+			}
+		}
+
+	case "charge.dispute.created":
+		var dispute stripe.Dispute
+		if err := json.Unmarshal(event.Data.Raw, &dispute); err == nil {
+
+			if dispute.Charge == nil {
+				fmt.Println("❌ dispute.Charge is nil")
+				break
+			}
+
+			chargeID := dispute.Charge.ID // THIS is the actual string
+
+			fmt.Println("⚠️ Payment disputed, Charge ID:", chargeID)
+
+			if err := PaymentOrderService.MarkOrderAsDisputed(chargeID); err != nil {
+				fmt.Println("❌ Failed to mark order as disputed:", err)
+			} else {
+				fmt.Println("🎉 Order marked as DISPUTED")
+			}
+		}
 
 	default:
 		fmt.Println("⚠️ Unhandled event:", event.Type)
