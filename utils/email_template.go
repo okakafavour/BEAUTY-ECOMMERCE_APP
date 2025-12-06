@@ -16,23 +16,28 @@ func OrderConfirmationEmail(name, orderId string) (string, string) {
 	return subject, html
 }
 
-func SendConfirmationEmail(toEmail, userName, orderID string) error {
-	subject := "Payment Successful ✅"
-	body := fmt.Sprintf(`
-	<h2>Hello %s,</h2>
-	<p>Your payment for order <strong>%s</strong> was successful.</p>
-	<p>Thank you for shopping with us!</p>
-	`, userName, orderID)
+func SendConfirmationEmail(to, name, orderID string) error {
+	subject := fmt.Sprintf("Payment Successful ✅ - Order %s", orderID)
 
-	// TODO: Replace this with real email sending code
-	fmt.Printf("Sending email to %s\nSubject: %s\nBody: %s\n", toEmail, subject, body)
+	text := fmt.Sprintf("Hello %s,\nYour payment for order %s was successful.\nThank you for shopping with Beauty Shop!", name, orderID)
+	html := fmt.Sprintf(`
+		<h2>Hello %s,</h2>
+		<p>Your payment for order <strong>%s</strong> was successful.</p>
+		<p>Thank you for shopping with Beauty Shop ❤️</p>
+	`, name, orderID)
 
-	// Return nil for now since we are just printing
-	return nil
+	return SendEmail(to, subject, text, html)
 }
-func SendFailedPaymentEmail(to string, name string, orderID string) error {
-	fmt.Println("⚠️ Sending failed payment email to:", to)
-	fmt.Println("Name:", name)
-	fmt.Println("OrderID:", orderID)
-	return nil
+
+func SendFailedPaymentEmail(to, name, orderID string) error {
+	subject := fmt.Sprintf("Payment Failed ❌ - Order %s", orderID)
+
+	text := fmt.Sprintf("Hello %s,\nYour payment for order %s has failed. Please try again or contact support.", name, orderID)
+	html := fmt.Sprintf(`
+		<h2>Hello %s,</h2>
+		<p>Your payment for order <strong>%s</strong> has failed.</p>
+		<p>Please try again or contact support for assistance.</p>
+	`, name, orderID)
+
+	return SendEmail(to, subject, text, html)
 }

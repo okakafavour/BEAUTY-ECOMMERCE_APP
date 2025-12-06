@@ -161,3 +161,23 @@ func (r *OrderRepository) MarkFailed(paymentReference string) error {
 	_, err := r.collection.UpdateOne(context.Background(), filter, update)
 	return err
 }
+
+func (r *OrderRepository) MarkPaid(paymentReference string) error {
+	filter := bson.M{"payment_reference": paymentReference}
+
+	update := bson.M{"$set": bson.M{
+		"status":     "paid",
+		"updated_at": time.Now(),
+	}}
+
+	res, err := r.collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		return err
+	}
+
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("no order found to mark as paid")
+	}
+
+	return nil
+}

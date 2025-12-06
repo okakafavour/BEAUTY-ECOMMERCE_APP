@@ -25,13 +25,8 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	if user.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
-		return
-	}
-
-	if user.Password == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Password is required"})
+	if user.Email == "" || user.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email and password are required"})
 		return
 	}
 
@@ -40,18 +35,20 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// Prepare email content
 	subject := "Welcome to Beauty Shop!"
 	plainText := "Hello " + user.Name + ", welcome to Beauty Shop! We're excited to have you on board."
 	htmlContent := "<h1>Hello " + user.Name + "</h1><p>Welcome to Beauty Shop! We're excited to have you on board.</p>"
 
-	// Send email asynchronously
-	go func() {
-		if err := utils.SendEmail(user.Email, subject, plainText, htmlContent); err != nil {
-			fmt.Println("Failed to send welcome email:", err)
-		}
-	}()
+	// Send email and log error synchronously for now
+	err := utils.SendEmail(user.Email, subject, plainText, htmlContent)
+	if err != nil {
+		fmt.Println("Failed to send welcome email:", err)
+		c.JSON(http.StatusCreated, gin.H{"message": "User created successfully, but failed to send email", "error": err.Error()})
+		return
+	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully, email sent"})
 }
 
 func Login(c *gin.Context) {
@@ -68,4 +65,17 @@ func Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
+}
+
+// Test endpoint to confirm email sending works
+func TestEmail(c *gin.Context) {
+	// Replace with your email to test
+	err := utils.SendEmail("testuser@gmail.com", "Test Email", "This is a test", "<p>This is a test</p>")
+	if err != nil {
+		fmt.Println("Error sending email:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Println("Email sent successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "Email sent"})
 }

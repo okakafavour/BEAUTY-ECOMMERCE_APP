@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v74"
+	"github.com/stripe/stripe-go/v74/webhook"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -75,8 +76,13 @@ func InitializePayment(c *gin.Context) {
 }
 
 // POST /payment/webhook
-// Signature verification removed for Postman testing
+// POST /payment/webhook
 func StripeWebhook(c *gin.Context) {
+	webhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+	if webhookSecret == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Webhook secret not configured"})
+		return
+	}
 
 	payload, err := c.GetRawData()
 	if err != nil {
@@ -84,22 +90,42 @@ func StripeWebhook(c *gin.Context) {
 		return
 	}
 
-	// Parse event manually (NO SIGNATURE CHECK)
+	sigHeader := c.GetHeader("Stripe-Signature")
 	var event stripe.Event
-	if err := json.Unmarshal(payload, &event); err != nil {
-		fmt.Println("❌ Failed to parse webhook:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid webhook structure"})
-		return
+
+	if sigHeader == "" {
+		// Local test mode: skip signature verification (Postman)
+		fmt.Println("⚡ Local test mode: skipping signature verification")
+		if err := json.Unmarshal(payload, &event); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+			return
+		}
+	} else {
+		// Verify real Stripe signature
+		event, err = webhook.ConstructEventWithOptions(
+			payload,
+			sigHeader,
+			webhookSecret,
+			webhook.ConstructEventOptions{
+				IgnoreAPIVersionMismatch: true,
+			},
+		)
+		if err != nil {
+			fmt.Println("❌ Signature Verification Failed:", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature"})
+			return
+		}
 	}
 
-	fmt.Println("🔥 Webhook Event:", event.Type)
+	fmt.Println("🔥 Received event:", event.Type)
+	fmt.Println("⚡ Webhook hit!")
 
 	switch event.Type {
 
 	case "payment_intent.succeeded":
 		var pi stripe.PaymentIntent
 		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
-			fmt.Println("❌ Error parsing PaymentIntent:", err)
+			fmt.Println("❌ Failed to parse PaymentIntent:", err)
 			break
 		}
 
@@ -111,31 +137,50 @@ func StripeWebhook(c *gin.Context) {
 			fmt.Println("🎉 Order marked as PAID")
 		}
 
-		// send the email
-		utils.SendConfirmationEmail(
-			pi.Metadata["user_email"],
-			pi.Metadata["user_name"],
-			pi.Metadata["order_id"],
-		)
+		// Send confirmation email asynchronously
+		go func() {
+			userEmail := pi.Metadata["user_email"]
+			userName := pi.Metadata["user_name"]
+			orderID := pi.Metadata["order_id"]
+
+			if userEmail == "" {
+				userEmail = "okakafavour81@gmail.com" // fallback for Postman test
+			}
+
+			if err := utils.SendConfirmationEmail(userEmail, userName, orderID); err != nil {
+				fmt.Println("❌ Failed to send confirmation email:", err)
+			}
+		}()
 
 	case "payment_intent.payment_failed":
 		var pi stripe.PaymentIntent
 		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
-			fmt.Println("❌ Error parsing failed PaymentIntent:", err)
+			fmt.Println("❌ Failed to parse failed PaymentIntent:", err)
 			break
 		}
 
 		fmt.Println("❌ Payment FAILED:", pi.ID)
 
 		if err := PaymentOrderService.MarkOrderAsFailed(pi.ID); err != nil {
-			fmt.Println("❌ Failed to update order:", err)
+			fmt.Println("❌ Failed to mark order as FAILED:", err)
+		} else {
+			fmt.Println("Order marked as FAILED")
 		}
 
-		utils.SendFailedPaymentEmail(
-			pi.Metadata["user_email"],
-			pi.Metadata["user_name"],
-			pi.Metadata["order_id"],
-		)
+		// Send failed payment email asynchronously
+		go func() {
+			userEmail := pi.Metadata["user_email"]
+			userName := pi.Metadata["user_name"]
+			orderID := pi.Metadata["order_id"]
+
+			if userEmail == "" {
+				userEmail = "okakafavour81@gmail.com" // fallback for Postman test
+			}
+
+			if err := utils.SendFailedPaymentEmail(userEmail, userName, orderID); err != nil {
+				fmt.Println("❌ Failed to send failed payment email:", err)
+			}
+		}()
 
 	default:
 		fmt.Println("⚠️ Unhandled event:", event.Type)

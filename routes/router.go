@@ -75,6 +75,7 @@ func SetUpRoutes(r *gin.Engine) {
 	// --------------------------
 	r.POST("/signup", controllers.Register)
 	r.POST("/login", controllers.Login)
+	r.GET("/test-email", controllers.TestEmail)
 
 	// --------------------------
 	// CART ROUTES
