@@ -8,9 +8,9 @@ import (
 )
 
 // CreateStripePaymentIntent creates a PaymentIntent for a given order
-func CreateStripePaymentIntent(amount float64, currency, orderID string) (*stripe.PaymentIntent, error) {
+func CreateStripePaymentIntent(amount float64, currency, orderID, userEmail string) (*stripe.PaymentIntent, error) {
 	params := &stripe.PaymentIntentParams{
-		Amount:   stripe.Int64(int64(amount * 100)), // amount in kobo
+		Amount:   stripe.Int64(int64(amount * 100)), // Convert to kobo
 		Currency: stripe.String(currency),
 		PaymentMethodTypes: stripe.StringSlice([]string{
 			"card",
@@ -19,6 +19,7 @@ func CreateStripePaymentIntent(amount float64, currency, orderID string) (*strip
 
 	// Add metadata
 	params.AddMetadata("order_id", orderID)
+	params.AddMetadata("user_email", userEmail)
 
 	return paymentintent.New(params)
 }

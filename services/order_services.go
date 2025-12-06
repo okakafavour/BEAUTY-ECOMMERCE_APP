@@ -15,6 +15,7 @@ type OrderService interface {
 	InitializePayment(orderID, userID primitive.ObjectID, email string) (string, string, error)
 	MarkOrderAsPaid(reference string) error
 	SaveOrderReference(orderID string, reference string) error
+	MarkOrderAsFailed(paymentReference string) error
 
 	// Admin operations (new)
 	GetAllOrders() ([]models.Order, error)

@@ -61,15 +61,30 @@ func (s *productServiceImpl) UpdateProduct(id string, product models.Product) er
 		return errors.New("invalid product ID")
 	}
 
-	update := bson.M{
-		"name":        product.Name,
-		"description": product.Description,
-		"price":       product.Price,
-		"image_url":   product.ImageURL,
-		"category":    product.Category,
-		"stock":       product.Stock,
-		"updated_at":  time.Now(),
+	update := bson.M{}
+
+	// Only update fields that are non-empty / non-zero
+	if product.Name != "" {
+		update["name"] = product.Name
 	}
+	if product.Description != "" {
+		update["description"] = product.Description
+	}
+	if product.Price != 0 {
+		update["price"] = product.Price
+	}
+	if product.Stock != 0 {
+		update["stock"] = product.Stock
+	}
+	if product.Category != "" {
+		update["category"] = product.Category
+	}
+	if product.ImageURL != "" {
+		update["image_url"] = product.ImageURL
+	}
+
+	// Always update timestamp
+	update["updated_at"] = time.Now()
 
 	return s.productRepo.Update(objID, update)
 }

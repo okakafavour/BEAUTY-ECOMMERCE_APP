@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 	config.ConnectTestDB()
 
 	// Initialize controller
-	InitUserController()
+	// InitUserController()
 
 	// Run tests
 	code := m.Run()

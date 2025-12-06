@@ -33,10 +33,16 @@ func (r *UserRepository) FindByEmail(email string) (models.User, error) {
 	return user, err
 }
 
-// Find user by ID
+// Find user by ID (updated to use ObjectID)
 func (r *UserRepository) FindById(id string) (models.User, error) {
 	var user models.User
-	err := r.Collection.FindOne(context.TODO(), bson.M{"_id": id}).Decode(&user)
+
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return user, errors.New("invalid user id")
+	}
+
+	err = r.Collection.FindOne(context.TODO(), bson.M{"_id": objID}).Decode(&user)
 	return user, err
 }
 

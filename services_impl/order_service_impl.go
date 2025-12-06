@@ -15,13 +15,15 @@ import (
 type orderServiceImpl struct {
 	orderRepo   *repositories.OrderRepository
 	productRepo *repositories.ProductRepository
+	userRepo    *repositories.UserRepository
 }
 
 // Constructor
-func NewOrderService(orderRepo *repositories.OrderRepository, productRepo *repositories.ProductRepository) *orderServiceImpl {
+func NewOrderService(orderRepo *repositories.OrderRepository, productRepo *repositories.ProductRepository, userRepo *repositories.UserRepository) *orderServiceImpl {
 	return &orderServiceImpl{
 		orderRepo:   orderRepo,
 		productRepo: productRepo,
+		userRepo:    userRepo,
 	}
 }
 
@@ -90,8 +92,7 @@ func (s *orderServiceImpl) CancelOrder(orderID primitive.ObjectID, userID primit
 	return order, nil
 }
 
-// InitializePayment generates a reference and calls Paystack
-func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID, email string) (clientSecret string, paymentID string, err error) {
+func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID, email string) (string, string, error) {
 	order, err := s.orderRepo.FindByID(orderID)
 	if err != nil {
 		return "", "", errors.New("order not found")
@@ -101,13 +102,19 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 		return "", "", errors.New("you are not allowed to pay for this order")
 	}
 
+	// Fetch user to attach metadata (optional)
+	user, err := s.userRepo.FindById(userID.Hex())
+	if err != nil {
+		return "", "", errors.New("user not found")
+	}
+
 	// Create Stripe PaymentIntent
-	pi, err := utils.CreateStripePaymentIntent(order.Total, "ngn", orderID.Hex())
+	pi, err := utils.CreateStripePaymentIntent(order.Total, "ngn", orderID.Hex(), user.Email)
 	if err != nil {
 		return "", "", err
 	}
 
-	// Save PaymentIntent ID in order
+	// Save payment reference
 	order.PaymentReference = pi.ID
 	if err := s.orderRepo.UpdateOrderReference(orderID.Hex(), pi.ID); err != nil {
 		return "", "", errors.New("failed to save payment reference")
@@ -171,4 +178,8 @@ func (s *orderServiceImpl) GetSalesAnalytics() (map[string]interface{}, error) {
 	}
 
 	return data, nil
+}
+
+func (s *orderServiceImpl) MarkOrderAsFailed(paymentReference string) error {
+	return s.orderRepo.MarkFailed(paymentReference)
 }

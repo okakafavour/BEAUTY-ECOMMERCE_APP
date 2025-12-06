@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/stripe/stripe-go/v74"
+	"github.com/stripe/stripe-go/v74/paymentintent"
 )
 
 func SendEmail(to, subject, text, html string) error {
@@ -46,4 +49,19 @@ func SendEmail(to, subject, text, html string) error {
 		return fmt.Errorf("failed: %s", resp.Status)
 	}
 	return nil
+}
+
+func CreateStripePaymentIntentWithMetadata(amount float64, currency, orderID, userEmail, userName string) (*stripe.PaymentIntent, error) {
+	params := &stripe.PaymentIntentParams{
+		Amount:             stripe.Int64(int64(amount * 100)),
+		Currency:           stripe.String(currency),
+		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
+	}
+
+	// Add metadata
+	params.AddMetadata("order_id", orderID)
+	params.AddMetadata("user_email", userEmail)
+	params.AddMetadata("user_name", userName)
+
+	return paymentintent.New(params)
 }

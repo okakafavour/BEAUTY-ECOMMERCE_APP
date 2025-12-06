@@ -1,0 +1,9 @@
+{
+  "type": "card",
+  "card": {
+    "number": "4000000000009995",
+    "exp_month": 12,
+    "exp_year": 2030,
+    "cvc": "123"
+  }
+}

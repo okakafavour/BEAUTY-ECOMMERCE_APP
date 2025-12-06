@@ -1,8 +1,8 @@
 package servicesimpl
 
 import (
-	"beauty-ecommerce-backend/config"
 	"beauty-ecommerce-backend/models"
+	"beauty-ecommerce-backend/repositories"
 	"beauty-ecommerce-backend/services"
 	"beauty-ecommerce-backend/utils"
 	"context"
@@ -17,12 +17,12 @@ import (
 )
 
 type userServiceImpl struct {
-	collection *mongo.Collection
+	userRepo *repositories.UserRepository
 }
 
-func NewUserService() services.UserService {
+func NewUserService(userRepo *repositories.UserRepository) services.UserService {
 	return &userServiceImpl{
-		collection: config.GetCollection("users"),
+		userRepo: userRepo,
 	}
 }
 
@@ -35,7 +35,7 @@ func (s *userServiceImpl) Register(user models.User) error {
 		return errors.New("email and password are required")
 	}
 
-	count, err := s.collection.CountDocuments(ctx, bson.M{"email": user.Email})
+	count, err := s.userRepo.Collection.CountDocuments(ctx, bson.M{"email": user.Email})
 	if err != nil {
 		return errors.New("failed to check existing user")
 	}
@@ -63,7 +63,7 @@ func (s *userServiceImpl) Register(user models.User) error {
 	user.UpdatedAt = time.Now()
 
 	// Insert user and get inserted ID
-	res, err := s.collection.InsertOne(ctx, user)
+	res, err := s.userRepo.Collection.InsertOne(ctx, user)
 	if err != nil {
 		return errors.New("failed to create user")
 	}
@@ -83,7 +83,7 @@ func (s *userServiceImpl) Login(email, password string) (string, error) {
 	defer cancel()
 
 	var found models.User
-	err := s.collection.FindOne(ctx, bson.M{"email": email}).Decode(&found)
+	err := s.userRepo.Collection.FindOne(ctx, bson.M{"email": email}).Decode(&found)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return "", errors.New("invalid email or password")
@@ -110,7 +110,7 @@ func (s *userServiceImpl) GetAllUsers() ([]models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cursor, err := s.collection.Find(ctx, bson.M{})
+	cursor, err := s.userRepo.Collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (s *userServiceImpl) UpdateUser(userID string, update models.User) error {
 		},
 	}
 
-	res, err := s.collection.UpdateOne(ctx, bson.M{"_id": id}, updateBson)
+	res, err := s.userRepo.Collection.UpdateOne(ctx, bson.M{"_id": id}, updateBson)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (s *userServiceImpl) DeleteUser(userID string) error {
 		return errors.New("invalid user ID")
 	}
 
-	res, err := s.collection.DeleteOne(ctx, bson.M{"_id": id})
+	res, err := s.userRepo.Collection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func (s *userServiceImpl) GetUserByID(id primitive.ObjectID) (models.User, error
 	defer cancel()
 
 	var user models.User
-	err := s.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	err := s.userRepo.Collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
 	if err != nil {
 		return models.User{}, errors.New("user not found")
 	}

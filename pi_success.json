@@ -1,0 +1,9 @@
+{
+  "id": "evt_test_manual",
+  "type": "payment_intent.succeeded",
+  "data": {
+    "object": {
+      "id": "pi_3SaqlFRhIgDY5Lro1l6KvLWp"
+    }
+  }
+}

@@ -136,20 +136,20 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 
 func (pc *ProductController) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
+
+	// 1️⃣ Bind JSON
 	var input struct {
 		Name        *string  `json:"name"`
 		Description *string  `json:"description"`
 		Price       *float64 `json:"price"`
 		Stock       *int     `json:"stock"`
 		Category    *string  `json:"category"`
-		ImageURL    *string  `json:"image_url"`
+		ImageURL    *string  `json:"image_url"` // optional remote URL
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+	_ = c.ShouldBindJSON(&input)
 
+	// 2️⃣ Initialize update struct
 	update := models.Product{}
 
 	if input.Name != nil {
@@ -169,6 +169,17 @@ func (pc *ProductController) UpdateProduct(c *gin.Context) {
 	}
 	if input.ImageURL != nil {
 		update.ImageURL = *input.ImageURL
+	}
+
+	// 3️⃣ Handle file upload (optional)
+	file, err := c.FormFile("image")
+	if err == nil {
+		url, _, err := utils.UploadToCloudinaryWithID(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image: " + err.Error()})
+			return
+		}
+		update.ImageURL = url
 	}
 
 	if err := pc.productService.UpdateProduct(id, update); err != nil {

@@ -150,3 +150,14 @@ func (r *OrderRepository) Update(orderID primitive.ObjectID, update bson.M) erro
 	}
 	return nil
 }
+
+func (r *OrderRepository) MarkFailed(paymentReference string) error {
+	filter := bson.M{"payment_reference": paymentReference}
+	update := bson.M{"$set": bson.M{
+		"status":     "failed",
+		"updated_at": time.Now(),
+	}}
+
+	_, err := r.collection.UpdateOne(context.Background(), filter, update)
+	return err
+}

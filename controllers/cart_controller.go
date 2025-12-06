@@ -3,10 +3,12 @@ package controllers
 import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -15,6 +17,33 @@ var cartService services.CartService
 func InitCartController(cs services.CartService) {
 	cartService = cs
 }
+
+// -------------------- Helper --------------------
+func getUserIDFromContext(c *gin.Context) (primitive.ObjectID, error) {
+	userClaims, exists := c.Get("user")
+	if !exists {
+		return primitive.NilObjectID, fmt.Errorf("Unauthorized")
+	}
+
+	claimsMap, ok := userClaims.(jwt.MapClaims)
+	if !ok {
+		return primitive.NilObjectID, fmt.Errorf("Cannot read token claims")
+	}
+
+	userIDStr, ok := claimsMap["user_id"].(string)
+	if !ok {
+		return primitive.NilObjectID, fmt.Errorf("user_id must be a string")
+	}
+
+	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		return primitive.NilObjectID, fmt.Errorf("Invalid user_id format")
+	}
+
+	return userID, nil
+}
+
+// -------------------- CREATE CART ITEM --------------------
 func CreateCart(c *gin.Context) {
 	var body struct {
 		ProductID string `json:"product_id"`
@@ -26,27 +55,12 @@ func CreateCart(c *gin.Context) {
 		return
 	}
 
-	// Get userID from middleware (STRING, not ObjectID)
-	userIDHex, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userIDStr, ok := userIDHex.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "user_id must be a string"})
-		return
-	}
-
-	// Convert string → ObjectID
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	userID, err := getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id format"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Convert productID to ObjectID
 	productID, err := primitive.ObjectIDFromHex(body.ProductID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
@@ -71,22 +85,11 @@ func CreateCart(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"cart_item": createdCartItem})
 }
 
+// -------------------- GET CART ITEMS --------------------
 func GetCart(c *gin.Context) {
-	userIDHex, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userIDStr, ok := userIDHex.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "user_id must be a string"})
-		return
-	}
-
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	userID, err := getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id format"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -99,26 +102,28 @@ func GetCart(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"cart_items": cartItems})
 }
 
+// -------------------- UPDATE CART ITEM --------------------
 func UpdateCartItem(c *gin.Context) {
-	cartItemID, _ := primitive.ObjectIDFromHex(c.Param("id"))
+	cartItemID, err := primitive.ObjectIDFromHex(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart item ID"})
+		return
+	}
 
 	var body struct {
 		Quantity int `json:"quantity"`
 	}
-
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	// STEP 1 — Get existing cart item
 	existing, err := cartService.GetCartItemByID(cartItemID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Cart item not found"})
 		return
 	}
 
-	// STEP 2 — Update quantity only
 	existing.Quantity = body.Quantity
 	existing.UpdatedAt = time.Now()
 
@@ -131,43 +136,33 @@ func UpdateCartItem(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"cart_item": updated})
 }
 
+// -------------------- DELETE CART ITEM --------------------
 func DeleteCartItem(c *gin.Context) {
-	cartItemID, _ := primitive.ObjectIDFromHex(c.Param("id"))
-	err := cartService.DeleteCartItem(cartItemID)
+	cartItemID, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid cart item ID"})
+		return
+	}
+
+	if err := cartService.DeleteCartItem(cartItemID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Cart item deleted"})
 }
 
+// -------------------- CLEAR CART --------------------
 func ClearCart(c *gin.Context) {
-	userIDHex, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-
-	userIDStr, ok := userIDHex.(string)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "user_id must be a string"})
-		return
-	}
-
-	userID, err := primitive.ObjectIDFromHex(userIDStr)
+	userID, err := getUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user_id format"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
 	cartItems, err := cartService.GetCartByUser(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if len(cartItems) == 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "Cart is already empty"})
 		return
 	}
 

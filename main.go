@@ -8,6 +8,7 @@ import (
 	"beauty-ecommerce-backend/config"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/routes"
+	"beauty-ecommerce-backend/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -32,11 +33,21 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
+	// Example order for testing (remove in production)
+	utils.AddTestOrder(&utils.Order{
+		ID:              "order_123",
+		PaymentIntentID: "pi_3SajFMRhIgDY5Lro1wAWon5R",
+		Status:          "pending",
+	})
+
 	// Create Gin router
 	router := gin.Default()
 
-	// Register all routes
+	// Register all routes (including payment/webhook)
 	routes.SetUpRoutes(router)
+
+	// ❌ REMOVE THIS → it causes duplicate route
+	// router.POST("/payment/webhook", utils.StripeWebhookHandler)
 
 	// Start server
 	fmt.Println("🚀 Server running on http://localhost:8080")

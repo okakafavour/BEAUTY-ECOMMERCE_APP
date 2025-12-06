@@ -61,7 +61,16 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		fmt.Println("JWT Claims:", claims) // ✅ debugging log
+		fmt.Println("JWT Claims:", claims)
+
+		userID, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: user_id missing"})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", userID)
 		c.Set("user", claims)
 
 		c.Next()

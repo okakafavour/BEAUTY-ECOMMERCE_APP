@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"beauty-ecommerce-backend/models"
+	"beauty-ecommerce-backend/repositories"
 	"beauty-ecommerce-backend/services"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
 	"beauty-ecommerce-backend/utils"
@@ -13,8 +14,8 @@ import (
 
 var userService services.UserService
 
-func InitUserController() {
-	userService = servicesimpl.NewUserService()
+func InitUserController(userRepo *repositories.UserRepository) {
+	userService = servicesimpl.NewUserService(userRepo)
 }
 
 func Register(c *gin.Context) {
