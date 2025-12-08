@@ -41,7 +41,7 @@ func InitializePayment(c *gin.Context) {
 		return
 	}
 
-	if order.Total <= 0 {
+	if order.TotalPrice <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "order total invalid"})
 		return
 	}
@@ -52,7 +52,7 @@ func InitializePayment(c *gin.Context) {
 		return
 	}
 
-	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.Total, "ngn", orderIDHex, user.Email, user.Name)
+	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.TotalPrice, "ngn", orderIDHex, user.Email, user.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -67,7 +67,7 @@ func InitializePayment(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "payment initialized",
 		"order_id":      orderIDHex,
-		"amount":        order.Total,
+		"amount":        order.TotalPrice,
 		"payment_id":    pi.ID,
 		"client_secret": pi.ClientSecret,
 	})

@@ -62,9 +62,8 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// Handle image upload
 	imageURL := ""
-	file, err := c.FormFile("image") // "image" is the key for the file
+	file, err := c.FormFile("image")
 	if err == nil && file != nil {
 		uploadedURL, err := utils.UploadToCloudinary(file)
 		if err != nil {
@@ -84,7 +83,6 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		ImageURL:    imageURL,
 	}
 
-	// Save product using service
 	if err := ac.ProductService.CreateProduct(&product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

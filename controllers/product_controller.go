@@ -39,7 +39,6 @@ func ProductControllerSingleton() *ProductController {
 
 // -------------------- CREATE PRODUCT --------------------
 func (pc *ProductController) CreateProduct(c *gin.Context) {
-	// 1️⃣ Bind JSON (ignore error, we may receive form-data)
 	var req struct {
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
@@ -78,7 +77,6 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// 3️⃣ Handle image upload (form-data file or remote URL)
 	var imageURL, imageID string
 
 	// Form-data file takes priority
@@ -102,7 +100,6 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		imageID = publicID
 	}
 
-	// 4️⃣ Verify that we got a valid public ID
 	if imageURL != "" && imageID == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve Cloudinary public ID"})
 		return
@@ -118,14 +115,13 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		Stock:       stock,
 		Category:    category,
 		ImageURL:    imageURL,
-		ImageID:     imageID, // Guaranteed to save public ID
+		ImageID:     imageID,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
 	fmt.Println("✅ Saving Product:", product.Name, "ImageID:", imageID)
 
-	// 6️⃣ Save product
 	if err := pc.productService.CreateProduct(&product); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -137,19 +133,17 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 func (pc *ProductController) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
 
-	// 1️⃣ Bind JSON
 	var input struct {
 		Name        *string  `json:"name"`
 		Description *string  `json:"description"`
 		Price       *float64 `json:"price"`
 		Stock       *int     `json:"stock"`
 		Category    *string  `json:"category"`
-		ImageURL    *string  `json:"image_url"` // optional remote URL
+		ImageURL    *string  `json:"image_url"`
 	}
 
 	_ = c.ShouldBindJSON(&input)
 
-	// 2️⃣ Initialize update struct
 	update := models.Product{}
 
 	if input.Name != nil {
@@ -171,7 +165,6 @@ func (pc *ProductController) UpdateProduct(c *gin.Context) {
 		update.ImageURL = *input.ImageURL
 	}
 
-	// 3️⃣ Handle file upload (optional)
 	file, err := c.FormFile("image")
 	if err == nil {
 		url, _, err := utils.UploadToCloudinaryWithID(file)

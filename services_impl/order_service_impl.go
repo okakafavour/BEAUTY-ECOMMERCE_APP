@@ -27,7 +27,7 @@ func NewOrderService(orderRepo *repositories.OrderRepository, productRepo *repos
 	}
 }
 
-// CreateOrder calculates total, populates items, and saves the order
+// CreateOrder calculates total, populates item details, and saves the order
 func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error) {
 	var total float64
 
@@ -47,7 +47,8 @@ func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error)
 		total += product.Price * float64(item.Quantity)
 	}
 
-	order.Total = total
+	order.TotalPrice = total
+	order.TotalPrice = total
 	order.Status = "pending"
 	order.ID = primitive.NewObjectID()
 	order.CreatedAt = time.Now()
@@ -57,17 +58,14 @@ func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error)
 	return order, err
 }
 
-// GetOrdersByUser fetches all orders for a user
 func (s *orderServiceImpl) GetOrdersByUser(userID primitive.ObjectID) ([]models.Order, error) {
 	return s.orderRepo.FindByUserID(userID)
 }
 
-// GetOrderByID fetches a single order by ID
 func (s *orderServiceImpl) GetOrderByID(orderID primitive.ObjectID) (*models.Order, error) {
 	return s.orderRepo.FindByID(orderID)
 }
 
-// CancelOrder cancels a pending order if owned by the user
 func (s *orderServiceImpl) CancelOrder(orderID primitive.ObjectID, userID primitive.ObjectID) (*models.Order, error) {
 	order, err := s.orderRepo.FindByID(orderID)
 	if err != nil {
@@ -102,19 +100,16 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 		return "", "", errors.New("you are not allowed to pay for this order")
 	}
 
-	// Fetch user to attach metadata (optional)
 	user, err := s.userRepo.FindById(userID.Hex())
 	if err != nil {
 		return "", "", errors.New("user not found")
 	}
 
-	// Create Stripe PaymentIntent
-	pi, err := utils.CreateStripePaymentIntent(order.Total, "ngn", orderID.Hex(), user.Email)
+	pi, err := utils.CreateStripePaymentIntent(order.TotalPrice, "ngn", orderID.Hex(), user.Email)
 	if err != nil {
 		return "", "", err
 	}
 
-	// Save payment reference
 	order.PaymentReference = pi.ID
 	if err := s.orderRepo.UpdateOrderReference(orderID.Hex(), pi.ID); err != nil {
 		return "", "", errors.New("failed to save payment reference")
@@ -123,8 +118,8 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 	return pi.ClientSecret, pi.ID, nil
 }
 
-func (s *orderServiceImpl) MarkOrderAsPaid(paymentID string) error {
-	order, err := s.orderRepo.FindByReference(paymentID)
+func (s *orderServiceImpl) MarkOrderAsPaid(paymentReference string) error {
+	order, err := s.orderRepo.FindByReference(paymentReference)
 	if err != nil {
 		return errors.New("order not found for this payment reference")
 	}
@@ -180,6 +175,7 @@ func (s *orderServiceImpl) GetSalesAnalytics() (map[string]interface{}, error) {
 	return data, nil
 }
 
+// Payment webhook helpers
 func (s *orderServiceImpl) MarkOrderAsFailed(paymentReference string) error {
 	return s.orderRepo.MarkFailed(paymentReference)
 }

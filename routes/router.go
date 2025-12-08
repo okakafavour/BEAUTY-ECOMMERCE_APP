@@ -5,6 +5,7 @@ import (
 	"beauty-ecommerce-backend/controllers"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/repositories"
+	"beauty-ecommerce-backend/services"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
 
 	"github.com/gin-gonic/gin"
@@ -20,14 +21,16 @@ func SetUpRoutes(r *gin.Engine) {
 	orderRepo := repositories.NewOrderRepository(db)
 	userRepo := repositories.NewUserRepository(db)
 	cartRepo := repositories.NewCartRepository(db)
+	reviewRepo := repositories.NewReviewRepository(db)
 
 	// --------------------------
 	// SERVICES
 	// --------------------------
 	productService := servicesimpl.NewProductService(productRepo)
-	userService := servicesimpl.NewUserService(userRepo) // pass userRepo here
+	userService := servicesimpl.NewUserService(userRepo)
 	orderService := servicesimpl.NewOrderService(orderRepo, productRepo, userRepo)
 	cartService := servicesimpl.NewCartService(cartRepo)
+	reviewService := services.NewReviewService(reviewRepo)
 
 	// --------------------------
 	// CONTROLLERS
@@ -35,11 +38,12 @@ func SetUpRoutes(r *gin.Engine) {
 	controllers.InitOrderController(orderService)
 	controllers.InitPaymentController(orderService, userService)
 	controllers.InitProductController(productService)
-	controllers.InitUserController(userRepo) // ✅ FIXED
+	controllers.InitUserController(userRepo)
 	controllers.InitCartController(cartService)
 
 	productController := controllers.ProductControllerSingleton()
 	adminController := controllers.NewAdminController(productService, orderService, userService)
+	reviewController := controllers.NewReviewController(reviewService) // ✅ Review controller
 
 	// --------------------------
 	// ADMIN ROUTES
@@ -69,6 +73,18 @@ func SetUpRoutes(r *gin.Engine) {
 	r.POST("/products", productController.CreateProduct)
 	r.PUT("/products/:id", productController.UpdateProduct)
 	r.DELETE("/products/:id/image", productController.DeleteProduct)
+
+	// --------------------------
+	// REVIEW ROUTES
+	// --------------------------
+	reviewRoutes := r.Group("/reviews")
+	reviewRoutes.Use(middlewares.JWTMiddleware())
+	{
+		reviewRoutes.POST("", reviewController.CreateReview)
+		reviewRoutes.PUT("/:id", reviewController.UpdateReview)
+		reviewRoutes.DELETE("/:id", reviewController.DeleteReview)
+	}
+	r.GET("/products/:id/reviews", reviewController.GetProductReviews) // public access
 
 	// --------------------------
 	// AUTH ROUTES
