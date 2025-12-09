@@ -1,1 +1,16 @@
+# Environment variables
 .env
+
+# Binaries
+*.exe
+*.out
+*.bin
+beauty-ecommerce-backend
+
+# Vendor directory (if using Go modules)
+vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
