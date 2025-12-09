@@ -43,40 +43,41 @@ func SetUpRoutes(r *gin.Engine) {
 
 	productController := controllers.ProductControllerSingleton()
 	adminController := controllers.NewAdminController(productService, orderService, userService)
-	reviewController := controllers.NewReviewController(reviewService) // ✅ Review controller
+	reviewController := controllers.NewReviewController(reviewService)
 
-	// --------------------------
-	// ADMIN ROUTES
-	// --------------------------
+	// ============================================================
+	// ADMIN ROUTES  (JWT + ADMIN REQUIRED)
+	// ============================================================
 	adminRoutes := r.Group("/admin")
 	adminRoutes.Use(middlewares.JWTMiddleware(), middlewares.AdminMiddleware())
 	{
+		// Product management
 		adminRoutes.POST("/products", adminController.CreateProduct)
 		adminRoutes.PUT("/products/:id", adminController.UpdateProduct)
 		adminRoutes.DELETE("/products/:id", adminController.DeleteProduct)
 
+		// Orders
 		adminRoutes.GET("/orders", adminController.ListOrders)
 		adminRoutes.PATCH("/orders/:id/status", adminController.UpdateOrderStatus)
 
+		// Users
 		adminRoutes.GET("/users", adminController.ListUsers)
 		adminRoutes.PATCH("/users/:id", adminController.UpdateUser)
 		adminRoutes.DELETE("/users/:id", adminController.DeleteUser)
 
+		// Analytics
 		adminRoutes.GET("/analytics/sales", adminController.SalesAnalytics)
 	}
 
-	// --------------------------
-	// PUBLIC PRODUCT ROUTES
-	// --------------------------
+	// ============================================================
+	// PUBLIC PRODUCT ROUTES (Safe)
+	// ============================================================
 	r.GET("/products", productController.GetAllProducts)
 	r.GET("/products/:id", productController.GetProductByID)
-	r.POST("/products", productController.CreateProduct)
-	r.PUT("/products/:id", productController.UpdateProduct)
-	r.DELETE("/products/:id/image", productController.DeleteProduct)
 
-	// --------------------------
-	// REVIEW ROUTES
-	// --------------------------
+	// ============================================================
+	// REVIEWS
+	// ============================================================
 	reviewRoutes := r.Group("/reviews")
 	reviewRoutes.Use(middlewares.JWTMiddleware())
 	{
@@ -84,18 +85,18 @@ func SetUpRoutes(r *gin.Engine) {
 		reviewRoutes.PUT("/:id", reviewController.UpdateReview)
 		reviewRoutes.DELETE("/:id", reviewController.DeleteReview)
 	}
-	r.GET("/products/:id/reviews", reviewController.GetProductReviews) // public access
+	r.GET("/products/:id/reviews", reviewController.GetProductReviews)
 
-	// --------------------------
-	// AUTH ROUTES
-	// --------------------------
+	// ============================================================
+	// AUTH
+	// ============================================================
 	r.POST("/signup", controllers.Register)
 	r.POST("/login", controllers.Login)
 	r.GET("/test-email", controllers.TestEmail)
 
-	// --------------------------
+	// ============================================================
 	// CART ROUTES
-	// --------------------------
+	// ============================================================
 	cartRoutes := r.Group("/cart")
 	cartRoutes.Use(middlewares.JWTMiddleware())
 	{
@@ -106,9 +107,9 @@ func SetUpRoutes(r *gin.Engine) {
 		cartRoutes.DELETE("", controllers.ClearCart)
 	}
 
-	// --------------------------
-	// ORDER & PAYMENT ROUTES
-	// --------------------------
+	// ============================================================
+	// ORDERS + PAYMENTS
+	// ============================================================
 	orderRoutes := r.Group("/orders")
 	orderRoutes.Use(middlewares.JWTMiddleware())
 	{
@@ -117,12 +118,7 @@ func SetUpRoutes(r *gin.Engine) {
 		orderRoutes.GET("/:id", controllers.GetOrderByID)
 		orderRoutes.PUT("/:id/cancel", controllers.CancelOrder)
 
-		// Payment initialization
 		orderRoutes.POST("/:id/pay", controllers.InitializePayment)
 	}
 
-	// --------------------------
-	// PAYMENT WEBHOOK
-	// --------------------------
-	r.POST("/payment/webhook", controllers.StripeWebhook)
 }
