@@ -17,35 +17,32 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	if err := godotenv.Load(".env"); err != nil {
-		log.Println("❌ Could not load .env file:", err)
-	} else {
-		log.Println("✅ .env loaded successfully")
-	}
 
-	// Set JWT secret for middleware
+	// Load .env only for local development (optional)
+	_ = godotenv.Load()
+
+	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
-	fmt.Println("✅ JwtSecret set:", string(middlewares.JwtSecret))
+	fmt.Println("✅ JwtSecret set")
 
 	// Connect to database
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	// TEMP: example order (remove later)
+	// TEMP TEST ORDER (optional)
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",
 		PaymentIntentID: "pi_3SajFMRhIgDY5Lro1wAWon5R",
 		Status:          "pending",
 	})
 
-	// Create router
+	// Start router
 	router := gin.Default()
 
-	// ===== REGISTER STRIPE WEBHOOK BEFORE MIDDLEWARE =====
+	// Register Stripe webhook BEFORE middleware
 	router.POST("/payment/webhook", controllers.StripeWebhook)
 
-	// ==== SECURITY HEADERS ====
+	// Security headers
 	router.Use(func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("X-Content-Type-Options", "nosniff")
@@ -55,23 +52,30 @@ func main() {
 		c.Next()
 	})
 
-	// ==== CORS CONFIG ====
+	// CORS Config
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
-			"http://localhost:3000",            // local dev
-			"https://your-frontend-domain.com", // production
+			"http://localhost:3000", // Local dev
+			"*",                     // Allow all for now (change later)
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
-	//=== SET UP ROUTES =====
+	// App routes
 	routes.SetUpRoutes(router)
 
-	//==== START SERVER =====
-	fmt.Println("🚀 Server running on http://localhost:8080")
-	if err := router.Run(":8080"); err != nil {
-		log.Fatal("Failed to start server:", err)
+	// Get PORT from Railway
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // fallback for local
+	}
+
+	fmt.Println("🚀 Server running on PORT:", port)
+
+	// Start server
+	if err := router.Run(":" + port); err != nil {
+		log.Fatal("❌ Failed to start server:", err)
 	}
 }
