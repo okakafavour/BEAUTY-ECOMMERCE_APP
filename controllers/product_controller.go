@@ -39,17 +39,18 @@ func ProductControllerSingleton() *ProductController {
 
 // -------------------- CREATE PRODUCT --------------------
 func (pc *ProductController) CreateProduct(c *gin.Context) {
+	// Struct for JSON fallback (remote URL)
 	var req struct {
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
 		Price       float64 `json:"price"`
 		Stock       int     `json:"stock"`
 		Category    string  `json:"category"`
-		ImageURL    string  `json:"image_url"` // For remote URL
+		ImageURL    string  `json:"image_url"` // optional remote URL
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	// 2️⃣ Get values from form-data if present (overwrite JSON values)
+	// -------------------- Read form-data values (overwrite JSON) --------------------
 	name := req.Name
 	description := req.Description
 	price := req.Price
@@ -77,6 +78,7 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	// -------------------- Handle Image --------------------
 	var imageURL, imageID string
 
 	// Form-data file takes priority
@@ -90,7 +92,7 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		imageURL = url
 		imageID = publicID
 	} else if req.ImageURL != "" {
-		// Remote image URL
+		// Fallback: remote image URL
 		url, publicID, err := utils.UploadRemoteImageWithID(req.ImageURL)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload remote image: " + err.Error()})
@@ -100,6 +102,7 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		imageID = publicID
 	}
 
+	// Make sure Cloudinary returned a public ID if URL exists
 	if imageURL != "" && imageID == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve Cloudinary public ID"})
 		return
@@ -107,7 +110,7 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 
 	fmt.Println("DEBUG: ImageURL:", imageURL, "ImageID:", imageID)
 
-	// 5️⃣ Create product object
+	// -------------------- Create Product --------------------
 	product := models.Product{
 		Name:        name,
 		Description: description,
