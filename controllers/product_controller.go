@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// -------------------- PRODUCT CONTROLLER --------------------
 type ProductController struct {
 	productService services.ProductService
 }
@@ -22,14 +21,12 @@ var (
 	once                      sync.Once
 )
 
-// Initialize singleton
 func InitProductController(productService services.ProductService) {
 	once.Do(func() {
 		productControllerInstance = &ProductController{productService: productService}
 	})
 }
 
-// Get singleton instance
 func ProductControllerSingleton() *ProductController {
 	if productControllerInstance == nil {
 		panic("ProductController not initialized. Call InitProductController first!")
@@ -39,14 +36,13 @@ func ProductControllerSingleton() *ProductController {
 
 // -------------------- CREATE PRODUCT --------------------
 func (pc *ProductController) CreateProduct(c *gin.Context) {
-	// Struct for JSON fallback (remote URL)
 	var req struct {
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
 		Price       float64 `json:"price"`
 		Stock       int     `json:"stock"`
 		Category    string  `json:"category"`
-		ImageURL    string  `json:"image_url"` // optional remote URL
+		ImageURL    string  `json:"image_url"`
 	}
 	_ = c.ShouldBindJSON(&req)
 
@@ -78,10 +74,8 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// -------------------- Handle Image --------------------
 	var imageURL, imageID string
 
-	// Form-data file takes priority
 	file, err := c.FormFile("image")
 	if err == nil {
 		url, publicID, err := utils.UploadToCloudinaryWithID(file)
@@ -92,7 +86,6 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		imageURL = url
 		imageID = publicID
 	} else if req.ImageURL != "" {
-		// Fallback: remote image URL
 		url, publicID, err := utils.UploadRemoteImageWithID(req.ImageURL)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload remote image: " + err.Error()})
@@ -102,7 +95,6 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 		imageID = publicID
 	}
 
-	// Make sure Cloudinary returned a public ID if URL exists
 	if imageURL != "" && imageID == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve Cloudinary public ID"})
 		return
@@ -110,7 +102,11 @@ func (pc *ProductController) CreateProduct(c *gin.Context) {
 
 	fmt.Println("DEBUG: ImageURL:", imageURL, "ImageID:", imageID)
 
-	// -------------------- Create Product --------------------
+	fmt.Println("DEBUG BEFORE CREATE:")
+	fmt.Println("Name:", name)
+	fmt.Println("ImageURL:", imageURL)
+	fmt.Println("ImageID:", imageID)
+
 	product := models.Product{
 		Name:        name,
 		Description: description,

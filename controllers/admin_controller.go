@@ -49,7 +49,7 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// Convert price and stock to numbers
+	// Convert price and stock
 	price, err := strconv.ParseFloat(priceStr, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid price"})
@@ -62,15 +62,19 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		return
 	}
 
+	// ---- CLOUDINARY UPLOAD (URL + ID) ----
 	imageURL := ""
+	imageID := ""
+
 	file, err := c.FormFile("image")
 	if err == nil && file != nil {
-		uploadedURL, err := utils.UploadToCloudinary(file)
+		uploadedURL, uploadedID, err := utils.UploadToCloudinaryWithID(file)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image: " + err.Error()})
 			return
 		}
 		imageURL = uploadedURL
+		imageID = uploadedID
 	}
 
 	// Create product object
@@ -81,6 +85,7 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		Stock:       stock,
 		Category:    category,
 		ImageURL:    imageURL,
+		ImageID:     imageID, // 🔥 important
 	}
 
 	if err := ac.ProductService.CreateProduct(&product); err != nil {
