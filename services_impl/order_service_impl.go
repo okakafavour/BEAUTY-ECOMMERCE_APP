@@ -6,6 +6,7 @@ import (
 	"beauty-ecommerce-backend/utils"
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,35 +28,45 @@ func NewOrderService(orderRepo *repositories.OrderRepository, productRepo *repos
 	}
 }
 
-// CreateOrder calculates total, populates item details, and saves the order
 func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error) {
-	var total float64
+	if len(order.Items) == 0 {
+		return order, errors.New("order must contain at least one item")
+	}
+
+	var subtotal float64
 
 	for i, item := range order.Items {
 		productID, err := primitive.ObjectIDFromHex(item.ProductID)
 		if err != nil {
-			return order, errors.New("invalid product id: " + item.ProductID)
+			return order, fmt.Errorf("invalid product ID: %s", item.ProductID)
 		}
 
 		product, err := s.productRepo.FindByID(productID)
 		if err != nil {
-			return order, errors.New("product not found: " + item.ProductID)
+			return order, fmt.Errorf("product not found: %s", item.ProductID)
 		}
 
 		order.Items[i].ProductName = product.Name
 		order.Items[i].Price = product.Price
-		total += product.Price * float64(item.Quantity)
+
+		subtotal += product.Price * float64(item.Quantity)
 	}
 
-	order.TotalPrice = total
-	order.TotalPrice = total
+	order.Subtotal = subtotal
+	order.ShippingFee = 0
+	order.TotalPrice = subtotal + order.ShippingFee
+
 	order.Status = "pending"
 	order.ID = primitive.NewObjectID()
 	order.CreatedAt = time.Now()
 	order.UpdatedAt = time.Now()
 
 	err := s.orderRepo.CreateOrder(context.Background(), &order)
-	return order, err
+	if err != nil {
+		return order, err
+	}
+
+	return order, nil
 }
 
 func (s *orderServiceImpl) GetOrdersByUser(userID primitive.ObjectID) ([]models.Order, error) {
