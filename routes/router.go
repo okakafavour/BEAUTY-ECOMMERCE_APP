@@ -43,34 +43,39 @@ func SetUpRoutes(r *gin.Engine) {
 
 	productController := controllers.ProductControllerSingleton()
 	adminController := controllers.NewAdminController(productService, orderService, userService)
+	adminAuthController := controllers.NewAdminAuthController()
 	reviewController := controllers.NewReviewController(reviewService)
 
 	// ============================================================
-	// ADMIN ROUTES  (JWT + ADMIN REQUIRED)
+	// ADMIN AUTH (PUBLIC)
+	// ============================================================
+	r.POST("/admin/login", adminAuthController.AdminLogin)
+
+	// ============================================================
+	// ADMIN ROUTES (JWT + ADMIN ONLY)
 	// ============================================================
 	adminRoutes := r.Group("/admin")
-	adminRoutes.Use(middlewares.JWTMiddleware(), middlewares.AdminMiddleware())
+	adminRoutes.Use(
+		middlewares.JWTMiddleware(),
+		middlewares.AdminMiddleware(),
+	)
 	{
-		// Product management
 		adminRoutes.POST("/products", adminController.CreateProduct)
 		adminRoutes.PUT("/products/:id", adminController.UpdateProduct)
 		adminRoutes.DELETE("/products/:id", adminController.DeleteProduct)
 
-		// Orders
 		adminRoutes.GET("/orders", adminController.ListOrders)
 		adminRoutes.PATCH("/orders/:id/status", adminController.UpdateOrderStatus)
 
-		// Users
 		adminRoutes.GET("/users", adminController.ListUsers)
 		adminRoutes.PATCH("/users/:id", adminController.UpdateUser)
 		adminRoutes.DELETE("/users/:id", adminController.DeleteUser)
 
-		// Analytics
 		adminRoutes.GET("/analytics/sales", adminController.SalesAnalytics)
 	}
 
 	// ============================================================
-	// PUBLIC PRODUCT ROUTES (Safe)
+	// PUBLIC PRODUCT ROUTES
 	// ============================================================
 	r.GET("/products", productController.GetAllProducts)
 	r.GET("/products/:id", productController.GetProductByID)
@@ -88,14 +93,14 @@ func SetUpRoutes(r *gin.Engine) {
 	r.GET("/products/:id/reviews", reviewController.GetProductReviews)
 
 	// ============================================================
-	// AUTH
+	// AUTH (USERS)
 	// ============================================================
 	r.POST("/signup", controllers.Register)
 	r.POST("/login", controllers.Login)
 	r.GET("/test-email", controllers.TestEmail)
 
 	// ============================================================
-	// CART ROUTES
+	// CART
 	// ============================================================
 	cartRoutes := r.Group("/cart")
 	cartRoutes.Use(middlewares.JWTMiddleware())
@@ -120,5 +125,4 @@ func SetUpRoutes(r *gin.Engine) {
 
 		orderRoutes.POST("/:id/pay", controllers.InitializePayment)
 	}
-
 }
