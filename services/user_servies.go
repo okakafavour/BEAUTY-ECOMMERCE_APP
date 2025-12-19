@@ -14,4 +14,5 @@ type UserService interface {
 	UpdateUser(userID string, update models.User) error
 	DeleteUser(userID string) error
 	GetUserByID(id primitive.ObjectID) (models.User, error)
+	GetProfile(userID primitive.ObjectID) (*models.User, error)
 }

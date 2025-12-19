@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var userService services.UserService
@@ -78,4 +79,22 @@ func TestEmail(c *gin.Context) {
 	}
 	fmt.Println("Email sent successfully")
 	c.JSON(http.StatusOK, gin.H{"message": "Email sent"})
+}
+
+func GetProfile(c *gin.Context) {
+	userID, _ := utils.ExtractUserIDAndRole(c)
+
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	user, err := userService.GetProfile(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	user.Password = ""
+	c.JSON(http.StatusOK, gin.H{"user": user})
 }

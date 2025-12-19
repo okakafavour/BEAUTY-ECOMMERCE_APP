@@ -106,3 +106,16 @@ func (r *UserRepository) Delete(userID string) error {
 	}
 	return nil
 }
+
+func (r *UserRepository) FindByID(userID primitive.ObjectID) (*models.User, error) {
+	var user models.User
+	err := r.Collection.FindOne(
+		context.TODO(),
+		bson.M{"_id": userID},
+	).Decode(&user)
+
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

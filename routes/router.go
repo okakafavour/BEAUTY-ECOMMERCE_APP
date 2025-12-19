@@ -141,6 +141,15 @@ func SetUpRoutes(r *gin.Engine) {
 		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
 	}
 
+	// ============================================================
+	// USER PROFILE
+	// ============================================================
+	userRoutes := r.Group("/users")
+	userRoutes.Use(middlewares.JWTMiddleware())
+	{
+		userRoutes.GET("/me", controllers.GetProfile)
+	}
+
 	r.GET("/version", func(c *gin.Context) {
 		c.JSON(200, gin.H{"version": "wishlist_update_2025-12-19"})
 	})

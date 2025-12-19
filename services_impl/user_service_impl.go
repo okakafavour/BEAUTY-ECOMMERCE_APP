@@ -182,3 +182,7 @@ func (s *userServiceImpl) GetUserByID(id primitive.ObjectID) (models.User, error
 
 	return user, nil
 }
+
+func (s *userServiceImpl) GetProfile(userID primitive.ObjectID) (*models.User, error) {
+	return s.userRepo.FindByID(userID)
+}
