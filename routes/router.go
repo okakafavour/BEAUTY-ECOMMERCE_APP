@@ -33,7 +33,7 @@ func SetUpRoutes(r *gin.Engine) {
 	orderService := servicesimpl.NewOrderService(orderRepo, productRepo, userRepo)
 	cartService := servicesimpl.NewCartService(cartRepo)
 	reviewService := services.NewReviewService(reviewRepo)
-	wishlistService := servicesimpl.NewWishlistService(wishlistRepo)
+	wishlistService := servicesimpl.NewWishlistService(wishlistRepo, productService)
 
 	// --------------------------
 	// CONTROLLERS
@@ -136,7 +136,7 @@ func SetUpRoutes(r *gin.Engine) {
 	wishlistRoutes := r.Group("/wishlist")
 	wishlistRoutes.Use(middlewares.JWTMiddleware())
 	{
-		wishlistRoutes.GET("", wishlistController.GetWishlist)
+		wishlistRoutes.GET("", wishlistController.GetWishlistPaginated)
 		wishlistRoutes.POST("/add", wishlistController.AddToWishlist)
 		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
 	}

@@ -10,11 +10,15 @@ import (
 )
 
 type WishlistServiceImpl struct {
-	repo *repositories.WishlistRepository
+	repo    *repositories.WishlistRepository
+	product services.ProductService // add this
 }
 
-func NewWishlistService(repo *repositories.WishlistRepository) services.WishlistService {
-	return &WishlistServiceImpl{repo}
+func NewWishlistService(repo *repositories.WishlistRepository, productService services.ProductService) services.WishlistService {
+	return &WishlistServiceImpl{
+		repo:    repo,
+		product: productService,
+	}
 }
 
 func (s *WishlistServiceImpl) GetWishlist(userID primitive.ObjectID) (*models.Wishlist, error) {
@@ -38,11 +42,7 @@ func (s *WishlistServiceImpl) RemoveProduct(userID, productID primitive.ObjectID
 	return s.repo.RemoveProduct(userID, productID)
 }
 
-func (s *WishlistServiceImpl) GetWishlistPaginated(
-	userID primitive.ObjectID,
-	page, limit int,
-) ([]primitive.ObjectID, int64, error) {
-
+func (s *WishlistServiceImpl) GetWishlistPaginated(userID primitive.ObjectID, page, limit int) ([]models.Product, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -51,5 +51,19 @@ func (s *WishlistServiceImpl) GetWishlistPaginated(
 	}
 
 	offset := (page - 1) * limit
-	return s.repo.GetPaginated(userID, offset, limit)
+	productIDs, total, err := s.repo.GetPaginated(userID, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	products := []models.Product{}
+	for _, pid := range productIDs {
+		product, err := s.product.GetProductByID(pid.Hex())
+		if err != nil {
+			continue
+		}
+		products = append(products, *product)
+	}
+
+	return products, total, nil
 }

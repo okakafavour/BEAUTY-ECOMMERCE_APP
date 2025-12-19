@@ -35,6 +35,8 @@ func (wc *WishlistController) AddToWishlist(c *gin.Context) {
 
 	var req struct {
 		ProductID string `json:"product_id"`
+		Page      int    `json:"page"`  // optional
+		Limit     int    `json:"limit"` // optional
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -47,13 +49,34 @@ func (wc *WishlistController) AddToWishlist(c *gin.Context) {
 		return
 	}
 
-	err = wc.service.AddProduct(userID, pid)
-	if err != nil {
+	if err := wc.service.AddProduct(userID, pid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "product added to wishlist"})
+	// Return updated wishlist paginated
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	products, total, err := wc.service.GetWishlistPaginated(userID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "product added to wishlist",
+		"products": products,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	})
 }
 
 // POST /wishlist/remove
@@ -62,6 +85,8 @@ func (wc *WishlistController) RemoveFromWishlist(c *gin.Context) {
 
 	var req struct {
 		ProductID string `json:"product_id"`
+		Page      int    `json:"page"`  // optional
+		Limit     int    `json:"limit"` // optional
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -74,13 +99,34 @@ func (wc *WishlistController) RemoveFromWishlist(c *gin.Context) {
 		return
 	}
 
-	err = wc.service.RemoveProduct(userID, pid) // ✅ Use RemoveProduct
-	if err != nil {
+	if err := wc.service.RemoveProduct(userID, pid); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "product removed from wishlist"})
+	// Return updated wishlist paginated
+	page := req.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := req.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	products, total, err := wc.service.GetWishlistPaginated(userID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "product removed from wishlist",
+		"products": products,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	})
 }
 
 // GET /wishlist?page=1&limit=10
