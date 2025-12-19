@@ -10,4 +10,5 @@ type WishlistService interface {
 	GetWishlist(userID primitive.ObjectID) (*models.Wishlist, error)
 	AddProduct(userID, productID primitive.ObjectID) error
 	RemoveProduct(userID, productID primitive.ObjectID) error
+	GetWishlistPaginated(userID primitive.ObjectID, page, limit int) ([]primitive.ObjectID, int64, error)
 }

@@ -21,9 +21,6 @@ type AdminController struct {
 	UserService    services.UserService
 }
 
-// -----------------------------
-// Constructor
-// -----------------------------
 func NewAdminController(ps services.ProductService, os services.OrderService, us services.UserService) *AdminController {
 	return &AdminController{
 		ProductService: ps,
@@ -32,10 +29,7 @@ func NewAdminController(ps services.ProductService, os services.OrderService, us
 	}
 }
 
-//////////////////////////////
 // PRODUCT METHODS
-//////////////////////////////
-
 func (ac *AdminController) CreateProduct(c *gin.Context) {
 	// Parse form-data fields
 	name := c.PostForm("name")
@@ -49,7 +43,6 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// Convert price and stock
 	price, err := strconv.ParseFloat(priceStr, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid price"})
@@ -62,7 +55,6 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	// ---- CLOUDINARY UPLOAD (URL + ID) ----
 	imageURL := ""
 	imageID := ""
 
@@ -85,7 +77,7 @@ func (ac *AdminController) CreateProduct(c *gin.Context) {
 		Stock:       stock,
 		Category:    category,
 		ImageURL:    imageURL,
-		ImageID:     imageID, // 🔥 important
+		ImageID:     imageID,
 	}
 
 	if err := ac.ProductService.CreateProduct(&product); err != nil {
@@ -122,9 +114,7 @@ func (ac *AdminController) DeleteProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Product deleted"})
 }
 
-//////////////////////////////
-// ORDER METHODS
-//////////////////////////////
+//===== ORDER METHODS =====//
 
 func (ac *AdminController) ListOrders(c *gin.Context) {
 	orders, err := ac.OrderService.GetAllOrders()

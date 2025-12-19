@@ -3,82 +3,53 @@ package servicesimpl
 import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/repositories"
-	"errors"
+	"beauty-ecommerce-backend/services"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type WishlistService struct {
+type WishlistServiceImpl struct {
 	repo *repositories.WishlistRepository
 }
 
-func NewWishlistService(repo *repositories.WishlistRepository) *WishlistService {
-	return &WishlistService{repo}
+func NewWishlistService(repo *repositories.WishlistRepository) services.WishlistService {
+	return &WishlistServiceImpl{repo}
 }
 
-// -------------------------------
-// Get wishlist for a user
-// -------------------------------
-func (s *WishlistService) GetWishlist(userID primitive.ObjectID) (*models.Wishlist, error) {
+func (s *WishlistServiceImpl) GetWishlist(userID primitive.ObjectID) (*models.Wishlist, error) {
 	wishlist, err := s.repo.FindByUser(userID)
 	if err != nil {
-		// Create empty wishlist if not exists
-		wishlist = &models.Wishlist{
-			ID:         primitive.NewObjectID(),
+		return &models.Wishlist{
 			UserID:     userID,
 			ProductIDs: []primitive.ObjectID{},
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
-		}
-		err = s.repo.Create(wishlist)
-		if err != nil {
-			return nil, err
-		}
+		}, nil
 	}
 	return wishlist, nil
 }
 
-// -------------------------------
-// Add product to wishlist
-// -------------------------------
-func (s *WishlistService) AddProduct(userID, productID primitive.ObjectID) error {
-	wishlist, err := s.GetWishlist(userID)
-	if err != nil {
-		return err
-	}
-
-	// Prevent duplicates
-	for _, pid := range wishlist.ProductIDs {
-		if pid == productID {
-			return errors.New("product already in wishlist")
-		}
-	}
-
-	wishlist.ProductIDs = append(wishlist.ProductIDs, productID)
-	wishlist.UpdatedAt = time.Now()
-
-	return s.repo.UpdateProducts(userID, wishlist.ProductIDs)
+func (s *WishlistServiceImpl) AddProduct(userID, productID primitive.ObjectID) error {
+	return s.repo.AddProduct(userID, productID)
 }
 
-// -------------------------------
-// Remove product from wishlist
-// -------------------------------
-func (s *WishlistService) RemoveProduct(userID, productID primitive.ObjectID) error {
-	wishlist, err := s.GetWishlist(userID)
-	if err != nil {
-		return err
+func (s *WishlistServiceImpl) RemoveProduct(userID, productID primitive.ObjectID) error {
+	return s.repo.RemoveProduct(userID, productID)
+}
+
+func (s *WishlistServiceImpl) GetWishlistPaginated(
+	userID primitive.ObjectID,
+	page, limit int,
+) ([]primitive.ObjectID, int64, error) {
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
 	}
 
-	newProductIDs := []primitive.ObjectID{}
-	for _, pid := range wishlist.ProductIDs {
-		if pid != productID {
-			newProductIDs = append(newProductIDs, pid)
-		}
-	}
-
-	wishlist.ProductIDs = newProductIDs
-	wishlist.UpdatedAt = time.Now()
-
-	return s.repo.UpdateProducts(userID, wishlist.ProductIDs)
+	offset := (page - 1) * limit
+	return s.repo.GetPaginated(userID, offset, limit)
 }

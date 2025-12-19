@@ -22,6 +22,8 @@ func SetUpRoutes(r *gin.Engine) {
 	userRepo := repositories.NewUserRepository(db)
 	cartRepo := repositories.NewCartRepository(db)
 	reviewRepo := repositories.NewReviewRepository(db)
+	wishlistCollection := db.Collection("wishlists")
+	wishlistRepo := repositories.NewWishlistRepository(wishlistCollection)
 
 	// --------------------------
 	// SERVICES
@@ -31,6 +33,7 @@ func SetUpRoutes(r *gin.Engine) {
 	orderService := servicesimpl.NewOrderService(orderRepo, productRepo, userRepo)
 	cartService := servicesimpl.NewCartService(cartRepo)
 	reviewService := services.NewReviewService(reviewRepo)
+	wishlistService := servicesimpl.NewWishlistService(wishlistRepo)
 
 	// --------------------------
 	// CONTROLLERS
@@ -45,6 +48,7 @@ func SetUpRoutes(r *gin.Engine) {
 	adminController := controllers.NewAdminController(productService, orderService, userService)
 	adminAuthController := controllers.NewAdminAuthController()
 	reviewController := controllers.NewReviewController(reviewService)
+	wishlistController := controllers.NewWishlistController(wishlistService)
 
 	// ============================================================
 	// ADMIN AUTH (PUBLIC)
@@ -125,4 +129,16 @@ func SetUpRoutes(r *gin.Engine) {
 
 		orderRoutes.POST("/:id/pay", controllers.InitializePayment)
 	}
+
+	// ============================================================
+	// WISHLIST
+	// ============================================================
+	wishlistRoutes := r.Group("/wishlist")
+	wishlistRoutes.Use(middlewares.JWTMiddleware())
+	{
+		wishlistRoutes.GET("", wishlistController.GetWishlist)
+		wishlistRoutes.POST("/add", wishlistController.AddToWishlist)
+		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
+	}
+
 }

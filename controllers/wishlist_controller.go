@@ -4,13 +4,14 @@ import (
 	"beauty-ecommerce-backend/services"
 	"beauty-ecommerce-backend/utils"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type WishlistController struct {
-	service services.WishlistService // interface, not pointer
+	service services.WishlistService
 }
 
 func NewWishlistController(service services.WishlistService) *WishlistController {
@@ -80,4 +81,25 @@ func (wc *WishlistController) RemoveFromWishlist(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "product removed from wishlist"})
+}
+
+// GET /wishlist?page=1&limit=10
+func (wc *WishlistController) GetWishlistPaginated(c *gin.Context) {
+	userID, _ := utils.ExtractUserIDAndRole(c)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	products, total, err := wc.service.GetWishlistPaginated(userID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"products": products,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	})
 }
