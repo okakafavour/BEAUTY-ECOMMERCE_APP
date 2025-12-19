@@ -141,7 +141,7 @@ func SetUpRoutes(r *gin.Engine) {
 		wishlistRoutes.POST("/remove", wishlistController.RemoveFromWishlist)
 	}
 
-	// r.GET("/version", func(c *gin.Context) {
-	// 	c.JSON(200, gin.H{"version": "wishlist_update_2025-12-19"})
-	// })
+	r.GET("/version", func(c *gin.Context) {
+		c.JSON(200, gin.H{"version": "wishlist_update_2025-12-19"})
+	})
 }
