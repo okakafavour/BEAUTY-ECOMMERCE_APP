@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"os"
 
 	"github.com/sendgrid/sendgrid-go"
@@ -28,17 +29,26 @@ func SendEmail(to, subject, text, html string) error {
 	return nil
 }
 
-func CreateStripePaymentIntentWithMetadata(amount float64, currency, orderID, userEmail, userName string) (*stripe.PaymentIntent, error) {
+func CreateStripePaymentIntentWithMetadata(
+	amountGBP float64,
+	orderID string,
+	email string,
+	name string,
+) (*stripe.PaymentIntent, error) {
+
+	amountInPence := int64(math.Round(amountGBP * 100))
+
 	params := &stripe.PaymentIntentParams{
-		Amount:             stripe.Int64(int64(amount * 100)),
-		Currency:           stripe.String(currency),
-		PaymentMethodTypes: stripe.StringSlice([]string{"card"}),
+		Amount:   stripe.Int64(amountInPence),
+		Currency: stripe.String("gbp"),
 	}
 
-	// Add metadata
-	params.AddMetadata("order_id", orderID)
-	params.AddMetadata("user_email", userEmail)
-	params.AddMetadata("user_name", userName)
+	// ✅ Correct way to attach metadata
+	params.Metadata = map[string]string{
+		"order_id":   orderID,
+		"user_email": email,
+		"user_name":  name,
+	}
 
 	return paymentintent.New(params)
 }

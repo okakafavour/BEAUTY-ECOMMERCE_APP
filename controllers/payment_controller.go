@@ -52,7 +52,7 @@ func InitializePayment(c *gin.Context) {
 		return
 	}
 
-	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.TotalPrice, "ngn", orderIDHex, user.Email, user.Name)
+	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.TotalPrice, orderIDHex, user.Email, user.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
