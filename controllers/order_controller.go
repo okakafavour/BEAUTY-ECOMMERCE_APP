@@ -33,6 +33,20 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
+	// Validate DeliveryType
+	if order.DeliveryType != "standard" && order.DeliveryType != "express" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid delivery type"})
+		return
+	}
+
+	// Set shipping fee based on delivery type
+	switch order.DeliveryType {
+	case "standard":
+		order.ShippingFee = 3.99
+	case "express":
+		order.ShippingFee = 4.99
+	}
+
 	rawUserID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -53,25 +67,55 @@ func CreateOrder(c *gin.Context) {
 
 	order.UserID = userID
 
+	// Calculate subtotal from items
+	var subtotal float64
+	for i, item := range order.Items {
+		productID, err := primitive.ObjectIDFromHex(item.ProductID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+			return
+		}
+
+		product, err := orderService.GetProductByID(productID) // you might need a helper in your service
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Product not found"})
+			return
+		}
+
+		order.Items[i].ProductName = product.Name
+		order.Items[i].Price = product.Price
+		subtotal += product.Price * float64(item.Quantity)
+	}
+
+	order.Subtotal = subtotal
+	order.TotalPrice = subtotal + order.ShippingFee
+	order.Status = "pending"
+
 	createdOrder, err := orderService.CreateOrder(order)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Send response first
 	c.JSON(http.StatusCreated, createdOrder)
 
 	// Send order confirmation email asynchronously
 	go func() {
-		// Fetch user details from UserService
-		user, err := userService.GetUserByID(userID) // <- You need to implement this in UserService
+		user, err := userService.GetUserByID(userID) // fetch user details
 		if err != nil {
 			fmt.Println("Failed to fetch user for email:", err)
 			return
 		}
 
-		subject, html := utils.OrderConfirmationEmail(user.Name, createdOrder.ID.Hex())
+		subject, html := utils.OrderConfirmationEmail(
+			user.Name,
+			createdOrder.ID.Hex(),
+			createdOrder.DeliveryType,
+			createdOrder.Subtotal,
+			createdOrder.ShippingFee,
+			createdOrder.TotalPrice,
+		)
+
 		err = utils.SendEmail(user.Email, subject, "", html)
 		if err != nil {
 			fmt.Println("Failed to send order confirmation email:", err)
@@ -79,10 +123,7 @@ func CreateOrder(c *gin.Context) {
 	}()
 }
 
-// -------------------------------
-// Get Orders for logged-in user
 // GET /orders
-// -------------------------------
 func GetOrders(c *gin.Context) {
 	rawUserID, exists := c.Get("user_id")
 	if !exists {

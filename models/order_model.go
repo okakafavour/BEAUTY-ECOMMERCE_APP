@@ -16,6 +16,7 @@ type Order struct {
 	Items            []OrderItem        `bson:"items" json:"items"`
 	Subtotal         float64            `bson:"subtotal" json:"subtotal"`
 	ShippingFee      float64            `bson:"shipping_fee" json:"shipping_fee"`
+	DeliveryType     string             `bson:"delivery_type" json:"delivery_type"`
 	TotalPrice       float64            `bson:"total_price" json:"total_price"`
 	Status           string             `bson:"status" json:"status"`
 	PaymentReference string             `bson:"payment_reference" json:"payment_reference"`

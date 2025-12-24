@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v74"
@@ -91,7 +92,7 @@ func StripeWebhook(c *gin.Context) {
 	var event stripe.Event
 
 	if sigHeader == "" {
-		// Local test mode: skip signature verification
+		// Local test mode
 		fmt.Println("⚡ Local test mode: skipping signature verification")
 		if err := json.Unmarshal(payload, &event); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
@@ -112,6 +113,8 @@ func StripeWebhook(c *gin.Context) {
 	fmt.Println("🔥 Received event:", event.Type)
 	fmt.Println("⚡ Webhook hit!")
 
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+
 	switch event.Type {
 
 	case "payment_intent.succeeded":
@@ -122,29 +125,45 @@ func StripeWebhook(c *gin.Context) {
 		}
 
 		fmt.Println("✅ Payment succeeded:", pi.ID)
-
 		if err := PaymentOrderService.MarkOrderAsPaid(pi.ID); err != nil {
 			fmt.Println("❌ Failed to mark order as paid:", err)
-		} else {
-			fmt.Println("🎉 Order marked as PAID")
 		}
 
 		go func() {
+			// Read metadata
 			userEmail := pi.Metadata["user_email"]
 			userName := pi.Metadata["user_name"]
 			orderID := pi.Metadata["order_id"]
+			deliveryType := pi.Metadata["delivery_type"]
+			subtotalStr := pi.Metadata["subtotal"]
+			shippingStr := pi.Metadata["shipping_fee"]
+			totalStr := pi.Metadata["total_price"]
 
 			if userEmail == "" {
-				userEmail = "okakafavour81@gmail.com" // fallback for testing
+				userEmail = "okakafavour81@gmail.com" // fallback
 			}
 
-			// Send emails
-			if err := utils.SendCustomerPaymentSuccess(userEmail, userName, orderID); err != nil {
+			// Convert strings to float64
+			subtotal, _ := strconv.ParseFloat(subtotalStr, 64)
+			shipping, _ := strconv.ParseFloat(shippingStr, 64)
+			total, _ := strconv.ParseFloat(totalStr, 64)
+
+			// Customer email
+			if err := utils.SendConfirmationEmail(userEmail, userName, orderID, deliveryType, subtotal, shipping, total); err != nil {
 				fmt.Println("❌ Failed to send customer email:", err)
 			}
 
-			if err := utils.SendAdminNotification("Paid", orderID, userName, userEmail); err != nil {
-				fmt.Println("❌ Failed to send admin notification:", err)
+			// Admin email
+			if adminEmail != "" {
+				subject := fmt.Sprintf("New Order Paid - %s", orderID)
+				html := fmt.Sprintf(`
+					<p>Order <b>%s</b> paid by <b>%s</b> (%s).</p>
+					<p>Delivery: %s</p>
+					<p>Subtotal: £%.2f | Shipping: £%.2f | Total: £%.2f</p>`,
+					orderID, userName, userEmail, deliveryType, subtotal, shipping, total)
+				if err := utils.SendEmail(adminEmail, subject, "", html); err != nil {
+					fmt.Println("❌ Failed to send admin notification:", err)
+				}
 			}
 		}()
 
@@ -156,68 +175,48 @@ func StripeWebhook(c *gin.Context) {
 		}
 
 		fmt.Println("❌ Payment FAILED:", pi.ID)
-
 		if err := PaymentOrderService.MarkOrderAsFailed(pi.ID); err != nil {
 			fmt.Println("❌ Failed to mark order as FAILED:", err)
-		} else {
-			fmt.Println("Order marked as FAILED")
 		}
 
 		go func() {
 			userEmail := pi.Metadata["user_email"]
 			userName := pi.Metadata["user_name"]
 			orderID := pi.Metadata["order_id"]
-
 			if userEmail == "" {
 				userEmail = "okakafavour81@gmail.com"
 			}
 
-			if err := utils.SendCustomerPaymentFailed(userEmail, userName, orderID); err != nil {
+			if err := utils.SendFailedPaymentEmail(userEmail, userName, orderID); err != nil {
 				fmt.Println("❌ Failed to send customer failed email:", err)
 			}
 
-			if err := utils.SendAdminNotification("Payment FAILED", orderID, userName, userEmail); err != nil {
-				fmt.Println("❌ Failed to send admin failed notification:", err)
+			if adminEmail != "" {
+				subject := fmt.Sprintf("Payment FAILED - %s", orderID)
+				html := fmt.Sprintf("<p>Payment for order <b>%s</b> by <b>%s</b> (%s) FAILED.</p>", orderID, userName, userEmail)
+				if err := utils.SendEmail(adminEmail, subject, "", html); err != nil {
+					fmt.Println("❌ Failed to send admin failed notification:", err)
+				}
 			}
 		}()
 
+	// Handle refunds and disputes the same way as before
 	case "charge.refunded":
 		var charge stripe.Charge
 		if err := json.Unmarshal(event.Data.Raw, &charge); err == nil && charge.PaymentIntent != nil {
 			fmt.Println("💸 Payment refunded:", charge.ID)
-
 			if err := PaymentOrderService.MarkOrderAsRefunded(charge.PaymentIntent.ID); err != nil {
 				fmt.Println("❌ Failed to mark order as refunded:", err)
-			} else {
-				fmt.Println("🎉 Order marked as REFUNDED")
 			}
-
-			// Notify admin
-			go func() {
-				if err := utils.SendAdminNotification("Refunded", charge.PaymentIntent.ID, "-", "-"); err != nil {
-					fmt.Println("❌ Failed to send admin refund notification:", err)
-				}
-			}()
 		}
 
 	case "charge.dispute.created":
 		var dispute stripe.Dispute
 		if err := json.Unmarshal(event.Data.Raw, &dispute); err == nil && dispute.Charge != nil {
-			chargeID := dispute.Charge.ID
-			fmt.Println("⚠️ Payment disputed, Charge ID:", chargeID)
-
-			if err := PaymentOrderService.MarkOrderAsDisputed(chargeID); err != nil {
+			fmt.Println("⚠️ Payment disputed, Charge ID:", dispute.Charge.ID)
+			if err := PaymentOrderService.MarkOrderAsDisputed(dispute.Charge.ID); err != nil {
 				fmt.Println("❌ Failed to mark order as disputed:", err)
-			} else {
-				fmt.Println("🎉 Order marked as DISPUTED")
 			}
-
-			// Notify admin
-			go func() {
-				if err := utils.SendAdminNotification("Disputed", chargeID, "-", "-"); err != nil {
-					fmt.Println("❌ Failed to send admin dispute notification:", err)
-				}
-			}()
 		}
 
 	default:

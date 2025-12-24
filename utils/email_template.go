@@ -2,29 +2,41 @@ package utils
 
 import "fmt"
 
-func OrderConfirmationEmail(name, orderId string) (string, string) {
-	subject := "Order Confirmation - " + orderId
+func OrderConfirmationEmail(name, orderID, deliveryType string, subtotal, shippingFee, total float64) (string, string) {
+	subject := "Order Confirmation - " + orderID
 
 	html := fmt.Sprintf(`
 		<h2>Hello %s,</h2>
 		<p>Your order <b>%s</b> has been received successfully!</p>
+		<ul>
+			<li>Delivery Type: %s</li>
+			<li>Subtotal: £%.2f</li>
+			<li>Shipping Fee: £%.2f</li>
+			<li><strong>Total: £%.2f</strong></li>
+		</ul>
 		<p>We will notify you once it's shipped.</p>
 		<br>
 		<p>Thank you for shopping with Beauty Shop ❤️</p>
-	`, name, orderId)
+	`, name, orderID, deliveryType, subtotal, shippingFee, total)
 
 	return subject, html
 }
 
-func SendConfirmationEmail(to, name, orderID string) error {
+func SendConfirmationEmail(to, name, orderID, deliveryType string, subtotal, shippingFee, total float64) error {
 	subject := fmt.Sprintf("Payment Successful ✅ - Order %s", orderID)
+	text := fmt.Sprintf("Hello %s,\nYour payment for order %s was successful.\nDelivery: %s\nSubtotal: £%.2f\nShipping: £%.2f\nTotal: £%.2f\nThank you for shopping with Beauty Shop!", name, orderID, deliveryType, subtotal, shippingFee, total)
 
-	text := fmt.Sprintf("Hello %s,\nYour payment for order %s was successful.\nThank you for shopping with Beauty Shop!", name, orderID)
 	html := fmt.Sprintf(`
 		<h2>Hello %s,</h2>
 		<p>Your payment for order <strong>%s</strong> was successful.</p>
+		<ul>
+			<li>Delivery Type: %s</li>
+			<li>Subtotal: £%.2f</li>
+			<li>Shipping Fee: £%.2f</li>
+			<li><strong>Total: £%.2f</strong></li>
+		</ul>
 		<p>Thank you for shopping with Beauty Shop ❤️</p>
-	`, name, orderID)
+	`, name, orderID, deliveryType, subtotal, shippingFee, total)
 
 	return SendEmail(to, subject, text, html)
 }

@@ -53,9 +53,19 @@ func (s *orderServiceImpl) CreateOrder(order models.Order) (models.Order, error)
 	}
 
 	order.Subtotal = subtotal
-	order.ShippingFee = 0
-	order.TotalPrice = subtotal + order.ShippingFee
 
+	// Set shipping fee based on delivery type
+	switch order.DeliveryType {
+	case "standard":
+		order.ShippingFee = 3.99
+	case "express":
+		order.ShippingFee = 4.99
+	default:
+		order.ShippingFee = 3.99
+		order.DeliveryType = "standard"
+	}
+
+	order.TotalPrice = order.Subtotal + order.ShippingFee
 	order.Status = "pending"
 	order.ID = primitive.NewObjectID()
 	order.CreatedAt = time.Now()
@@ -116,7 +126,7 @@ func (s *orderServiceImpl) InitializePayment(orderID, userID primitive.ObjectID,
 		return "", "", errors.New("user not found")
 	}
 
-	pi, err := utils.CreateStripePaymentIntent(order.TotalPrice, "ngn", orderID.Hex(), user.Email)
+	pi, err := utils.CreateStripePaymentIntent(order.TotalPrice, "gbp", orderID.Hex(), user.Email)
 	if err != nil {
 		return "", "", err
 	}
@@ -197,4 +207,8 @@ func (s *orderServiceImpl) MarkOrderAsRefunded(paymentReference string) error {
 
 func (s *orderServiceImpl) MarkOrderAsDisputed(paymentReference string) error {
 	return s.orderRepo.MarkDisputed(paymentReference)
+}
+
+func (s *orderServiceImpl) GetProductByID(productID primitive.ObjectID) (*models.Product, error) {
+	return s.productRepo.FindByID(productID)
 }

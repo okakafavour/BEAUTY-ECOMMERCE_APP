@@ -16,6 +16,7 @@ type OrderService interface {
 	MarkOrderAsPaid(reference string) error
 	SaveOrderReference(orderID string, reference string) error
 	MarkOrderAsFailed(paymentReference string) error
+	GetProductByID(productID primitive.ObjectID) (*models.Product, error)
 
 	// Admin operations (new)
 	GetAllOrders() ([]models.Order, error)
