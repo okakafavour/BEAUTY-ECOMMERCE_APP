@@ -186,3 +186,109 @@ func (s *userServiceImpl) GetUserByID(id primitive.ObjectID) (models.User, error
 func (s *userServiceImpl) GetProfile(userID primitive.ObjectID) (*models.User, error) {
 	return s.userRepo.FindByID(userID)
 }
+
+func (s *userServiceImpl) SavePasswordResetToken(
+	userID primitive.ObjectID,
+	hashedToken string,
+	expiry time.Time,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"reset_password_token":  hashedToken,
+			"reset_password_expiry": expiry,
+			"updated_at":            time.Now(),
+		},
+	}
+
+	_, err := s.userRepo.Collection.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		update,
+	)
+
+	return err
+}
+
+func (s *userServiceImpl) GetUserByResetToken(
+	hashedToken string,
+) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := s.userRepo.Collection.FindOne(
+		ctx,
+		bson.M{"reset_password_token": hashedToken},
+	).Decode(&user)
+
+	if err != nil {
+		return nil, errors.New("invalid or expired token")
+	}
+
+	return &user, nil
+}
+
+func (s *userServiceImpl) UpdatePassword(
+	userID primitive.ObjectID,
+	hashedPassword string,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"password":   hashedPassword,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := s.userRepo.Collection.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		update,
+	)
+
+	return err
+}
+
+func (s *userServiceImpl) ClearResetToken(
+	userID primitive.ObjectID,
+) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$unset": bson.M{
+			"reset_password_token":  "",
+			"reset_password_expiry": "",
+		},
+	}
+
+	_, err := s.userRepo.Collection.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		update,
+	)
+
+	return err
+}
+
+func (s *userServiceImpl) GetUserByEmail(email string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var user models.User
+	err := s.userRepo.Collection.FindOne(
+		ctx,
+		bson.M{"email": email},
+	).Decode(&user)
+
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	return &user, nil
+}

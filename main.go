@@ -18,28 +18,23 @@ import (
 
 func main() {
 
-	// Load .env only for local development (optional)
 	_ = godotenv.Load()
 
-	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
 
-	// Connect to database
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	// TEMP TEST ORDER (optional)
+	// TEMP TEST ORDER DATA
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",
 		PaymentIntentID: "pi_3SajFMRhIgDY5Lro1wAWon5R",
 		Status:          "pending",
 	})
 
-	// Start router
 	router := gin.Default()
 
-	// Register Stripe webhook BEFORE middleware
 	router.POST("/payment/webhook", controllers.StripeWebhook)
 
 	// Security headers
@@ -63,19 +58,16 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// App routes
 	routes.SetUpRoutes(router)
 
-	// Get PORT from Railway
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // fallback for local
+		port = "8080"
 	}
 
-	fmt.Println("🚀 Server running on PORT:", port)
+	fmt.Println("Server running on PORT:", port)
 
-	// Start server
 	if err := router.Run(":" + port); err != nil {
-		log.Fatal("❌ Failed to start server:", err)
+		log.Fatal("Failed to start server:", err)
 	}
 }

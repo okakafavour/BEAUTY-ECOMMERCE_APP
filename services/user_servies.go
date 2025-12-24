@@ -2,6 +2,7 @@ package services
 
 import (
 	"beauty-ecommerce-backend/models"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -15,4 +16,11 @@ type UserService interface {
 	DeleteUser(userID string) error
 	GetUserByID(id primitive.ObjectID) (models.User, error)
 	GetProfile(userID primitive.ObjectID) (*models.User, error)
+	GetUserByEmail(email string) (*models.User, error)
+
+	// 🔐 Password reset
+	SavePasswordResetToken(userID primitive.ObjectID, hashedToken string, expiry time.Time) error
+	GetUserByResetToken(hashedToken string) (*models.User, error)
+	UpdatePassword(userID primitive.ObjectID, hashedPassword string) error
+	ClearResetToken(userID primitive.ObjectID) error
 }

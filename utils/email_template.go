@@ -41,3 +41,21 @@ func SendFailedPaymentEmail(to, name, orderID string) error {
 
 	return SendEmail(to, subject, text, html)
 }
+
+func SendResetPasswordEmail(toEmail, resetLink string) error {
+	subject := "Reset your password"
+	plainText := fmt.Sprintf(
+		"Click the link below to reset your password:\n\n%s\n\nThis link expires in 15 minutes.",
+		resetLink,
+	)
+
+	html := fmt.Sprintf(`
+		<h2>Password Reset</h2>
+		<p>Click the button below to reset your password.</p>
+		<p><a href="%s" style="padding:10px 15px;background:#000;color:#fff;text-decoration:none;">
+		Reset Password</a></p>
+		<p>This link expires in 15 minutes.</p>
+	`, resetLink)
+
+	return SendEmail(toEmail, subject, plainText, html)
+}

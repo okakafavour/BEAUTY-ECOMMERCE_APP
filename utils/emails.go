@@ -52,3 +52,41 @@ func CreateStripePaymentIntentWithMetadata(
 
 	return paymentintent.New(params)
 }
+
+// SendCustomerPaymentSuccess sends a confirmation email to the customer
+func SendCustomerPaymentSuccess(userEmail, userName, orderID string) error {
+	subject := fmt.Sprintf("Payment Successful ✅ - Order %s", orderID)
+	text := fmt.Sprintf("Hello %s,\nYour payment for order %s was successful.\nThank you for shopping with Beauty Shop!", userName, orderID)
+	html := fmt.Sprintf(`
+		<h2>Hello %s,</h2>
+		<p>Your payment for order <strong>%s</strong> was successful.</p>
+		<p>Thank you for shopping with Beauty Shop ❤️</p>
+	`, userName, orderID)
+	return SendEmail(userEmail, subject, text, html)
+}
+
+// SendCustomerPaymentFailed notifies the customer of failed payment
+func SendCustomerPaymentFailed(userEmail, userName, orderID string) error {
+	subject := fmt.Sprintf("Payment Failed ❌ - Order %s", orderID)
+	text := fmt.Sprintf("Hello %s,\nYour payment for order %s has failed. Please try again or contact support.", userName, orderID)
+	html := fmt.Sprintf(`
+		<h2>Hello %s,</h2>
+		<p>Your payment for order <strong>%s</strong> has failed.</p>
+		<p>Please try again or contact support for assistance.</p>
+	`, userName, orderID)
+	return SendEmail(userEmail, subject, text, html)
+}
+
+// SendAdminNotification sends a notification to the admin
+func SendAdminNotification(eventType, orderID, userName, userEmail string) error {
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail == "" {
+		return nil // no admin configured
+	}
+
+	subject := fmt.Sprintf("%s - Order %s", eventType, orderID)
+	text := fmt.Sprintf("Order %s %s by %s (%s)", orderID, eventType, userName, userEmail)
+	html := fmt.Sprintf("<p>Order <b>%s</b> %s by <b>%s</b> (%s).</p>", orderID, eventType, userName, userEmail)
+
+	return SendEmail(adminEmail, subject, text, html)
+}

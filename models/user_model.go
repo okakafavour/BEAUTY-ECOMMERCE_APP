@@ -7,12 +7,14 @@ import (
 )
 
 type User struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name        string             `bson:"name" json:"name"`
-	Email       string             `bson:"email" json:"email"`
-	PhoneNumber string             `bson:"phone_number" json:"phone_number"`
-	Role        string             `bson:"role" json:"role"`
-	Password    string             `bson:"password" json:"password"`
-	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
+	ID                  primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name                string             `bson:"name" json:"name"`
+	Email               string             `bson:"email" json:"email"`
+	PhoneNumber         string             `bson:"phone_number" json:"phone_number"`
+	Role                string             `bson:"role" json:"role"`
+	Password            string             `bson:"password" json:"password"`
+	CreatedAt           time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt           time.Time          `bson:"updated_at" json:"updated_at"`
+	ResetPasswordToken  string             `bson:"reset_password_token,omitempty"`
+	ResetPasswordExpiry time.Time          `bson:"reset_password_expiry,omitempty"`
 }

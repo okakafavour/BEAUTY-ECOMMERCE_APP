@@ -101,6 +101,9 @@ func SetUpRoutes(r *gin.Engine) {
 	// ============================================================
 	r.POST("/signup", controllers.Register)
 	r.POST("/login", controllers.Login)
+	r.POST("/forgot-password", controllers.ForgotPassword)
+	r.GET("/reset-password", controllers.ResetPassword)
+	r.POST("/reset-password", controllers.ResetPassword)
 	r.GET("/test-email", controllers.TestEmail)
 
 	// ============================================================
