@@ -3,30 +3,38 @@ package utils
 import (
 	"fmt"
 	"math"
+	"net/smtp"
 	"os"
 
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/stripe/stripe-go/v74"
 	"github.com/stripe/stripe-go/v74/paymentintent"
 )
 
 func SendEmail(to, subject, text, html string) error {
-	from := mail.NewEmail("Beauty Shop", os.Getenv("EMAIL_FROM")) // Verified sender
-	toEmail := mail.NewEmail("", to)
+	host := os.Getenv("SMTP_HOST")         // smtp.mailersend.net
+	port := os.Getenv("SMTP_PORT")         // 587
+	username := os.Getenv("SMTP_USERNAME") // MS_xxxx@xxxx.mailersend.net
+	password := os.Getenv("SMTP_PASSWORD") // SMTP password
+	from := os.Getenv("SMTP_FROM")         // no-reply@batluxebeauty.com
 
-	message := mail.NewSingleEmail(from, subject, toEmail, text, html)
-	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
-	response, err := client.Send(message)
-	if err != nil {
-		return err
-	}
+	auth := smtp.PlainAuth("", username, password, host)
 
-	if response.StatusCode >= 400 {
-		return fmt.Errorf("failed to send email: %s", response.Body)
-	}
+	message := []byte(
+		fmt.Sprintf("From: Beauty Shop <%s>\r\n", from) +
+			fmt.Sprintf("To: %s\r\n", to) +
+			fmt.Sprintf("Subject: %s\r\n", subject) +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=\"UTF-8\"\r\n\r\n" +
+			html,
+	)
 
-	return nil
+	return smtp.SendMail(
+		host+":"+port,
+		auth,
+		from,
+		[]string{to},
+		message,
+	)
 }
 
 func CreateStripePaymentIntentWithMetadata(
@@ -78,15 +86,70 @@ func SendCustomerPaymentFailed(userEmail, userName, orderID string) error {
 }
 
 // SendAdminNotification sends a notification to the admin
-func SendAdminNotification(eventType, orderID, userName, userEmail string) error {
+func SendAdminNotification(
+	orderID,
+	userName,
+	userEmail,
+	deliveryType string,
+	subtotal,
+	shippingFee,
+	total float64,
+) error {
+
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
-		return nil // no admin configured
+		return nil // admin email not configured
 	}
 
-	subject := fmt.Sprintf("%s - Order %s", eventType, orderID)
-	text := fmt.Sprintf("Order %s %s by %s (%s)", orderID, eventType, userName, userEmail)
-	html := fmt.Sprintf("<p>Order <b>%s</b> %s by <b>%s</b> (%s).</p>", orderID, eventType, userName, userEmail)
+	subject := "New order placed on Beauty Shop"
+
+	text := fmt.Sprintf(
+		"A new order has been placed.\n\n"+
+			"Customer name: %s\n"+
+			"Customer email: %s\n"+
+			"Order reference: %s\n"+
+			"Delivery type: %s\n"+
+			"Subtotal: %.2f GBP\n"+
+			"Shipping fee: %.2f GBP\n"+
+			"Order total: %.2f GBP\n",
+		userName,
+		userEmail,
+		orderID,
+		deliveryType,
+		subtotal,
+		shippingFee,
+		total,
+	)
+
+	html := fmt.Sprintf(`
+		<h2>New Order Notification</h2>
+
+		<p>A new order has been placed on <strong>Beauty Shop</strong>.</p>
+
+		<ul>
+			<li><strong>Customer:</strong> %s</li>
+			<li><strong>Email:</strong> %s</li>
+			<li><strong>Order reference:</strong> %s</li>
+			<li><strong>Delivery type:</strong> %s</li>
+			<li><strong>Subtotal:</strong> %.2f GBP</li>
+			<li><strong>Shipping fee:</strong> %.2f GBP</li>
+			<li><strong>Order total:</strong> %.2f GBP</li>
+		</ul>
+
+		<hr />
+		<p style="font-size:12px;color:#666;">
+			Beauty Shop<br />
+			Admin notification
+		</p>
+	`,
+		userName,
+		userEmail,
+		orderID,
+		deliveryType,
+		subtotal,
+		shippingFee,
+		total,
+	)
 
 	return SendEmail(adminEmail, subject, text, html)
 }

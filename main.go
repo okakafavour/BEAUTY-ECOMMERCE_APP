@@ -26,6 +26,14 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
+	// --- TEST ADMIN EMAIL ---
+	err := utils.SendTestAdminEmail()
+	if err != nil {
+		log.Println("Admin test email failed:", err)
+	} else {
+		log.Println("✅ Admin test email sent! Check inbox.")
+	}
+
 	// TEMP TEST ORDER DATA
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",

@@ -148,14 +148,47 @@ func (s *orderServiceImpl) MarkOrderAsPaid(paymentReference string) error {
 	if order.Status == "paid" {
 		return nil
 	}
-
 	if order.Status != "pending" {
 		return errors.New("order cannot be marked as paid")
 	}
 
 	order.Status = "paid"
 	order.UpdatedAt = time.Now()
-	return s.orderRepo.UpdateOrder(order)
+	if err := s.orderRepo.UpdateOrder(order); err != nil {
+		return err
+	}
+
+	user, err := s.userRepo.FindById(order.UserID.Hex())
+	if err != nil {
+		fmt.Println("Failed to fetch user for email:", err)
+		return nil
+	}
+
+	if err := utils.SendConfirmationEmail(
+		user.Email,
+		user.Name,
+		order.ID.Hex(),
+		order.DeliveryType,
+		order.Subtotal,
+		order.ShippingFee,
+		order.TotalPrice,
+	); err != nil {
+		fmt.Println("Customer email failed:", err)
+	}
+
+	if err := utils.SendAdminNotification(
+		order.ID.Hex(),     // orderID
+		user.Name,          // userName
+		user.Email,         // userEmail
+		order.DeliveryType, // deliveryType
+		order.Subtotal,     // subtotal
+		order.ShippingFee,  // shippingFee
+		order.TotalPrice,   // total
+	); err != nil {
+		fmt.Println("Admin email failed:", err)
+	}
+
+	return nil
 }
 
 func (s *orderServiceImpl) SaveOrderReference(orderID string, reference string) error {
