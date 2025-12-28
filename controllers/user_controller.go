@@ -39,30 +39,9 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// ✅ Respond immediately (DO NOT BLOCK)
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
 	})
-
-	// ✅ Prepare email content
-	subject := "Welcome to Beauty Shop 🎉"
-	plainText := fmt.Sprintf(
-		"Hello %s,\n\nWelcome to Beauty Shop! We're excited to have you on board.",
-		user.Name,
-	)
-
-	htmlContent := fmt.Sprintf(`
-		<h2>Hello %s,</h2>
-		<p>Welcome to <strong>Beauty Shop</strong>! 🎉</p>
-		<p>We’re excited to have you on board.</p>
-	`, user.Name)
-
-	// ✅ Send email asynchronously (SAFE)
-	go func() {
-		if err := utils.SendEmail(user.Email, subject, plainText, htmlContent); err != nil {
-			fmt.Println("Email error:", err)
-		}
-	}()
 }
 
 func Login(c *gin.Context) {
