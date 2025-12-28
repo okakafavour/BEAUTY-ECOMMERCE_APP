@@ -7,6 +7,7 @@ import (
 	"beauty-ecommerce-backend/repositories"
 	"beauty-ecommerce-backend/services"
 	servicesimpl "beauty-ecommerce-backend/services_impl"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -139,4 +140,15 @@ func SetUpRoutes(r *gin.Engine) {
 	r.GET("/version", func(c *gin.Context) {
 		c.JSON(200, gin.H{"version": "wishlist_update_2025-12-19"})
 	})
+
+	r.GET("/test-env", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"SMTP_HOST":     os.Getenv("SMTP_HOST"),
+			"SMTP_PORT":     os.Getenv("SMTP_PORT"),
+			"SMTP_USER":     os.Getenv("SMTP_USERNAME"),
+			"SMTP_PASS_SET": os.Getenv("SMTP_PASSWORD") != "",
+			"SMTP_FROM":     os.Getenv("SMTP_FROM"),
+		})
+	})
+
 }
