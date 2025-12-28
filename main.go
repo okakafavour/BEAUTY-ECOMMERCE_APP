@@ -13,14 +13,13 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️ Could not load .env file, relying on environment variables")
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Println("⚠️ Could not load .env file, relying on environment variables")
+	// }
 
 	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
@@ -90,4 +89,10 @@ func main() {
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
+	fmt.Println("SMTP_HOST:", os.Getenv("SMTP_HOST"))
+	fmt.Println("SMTP_PORT:", os.Getenv("SMTP_PORT"))
+	fmt.Println("SMTP_USERNAME:", os.Getenv("SMTP_USERNAME"))
+	fmt.Println("SMTP_PASSWORD:", os.Getenv("SMTP_PASSWORD"))
+	fmt.Println("SMTP_FROM:", os.Getenv("SMTP_FROM"))
+
 }
