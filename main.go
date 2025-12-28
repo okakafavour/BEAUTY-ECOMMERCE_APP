@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"beauty-ecommerce-backend/config"
+	"beauty-ecommerce-backend/controllers"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/routes"
 	"beauty-ecommerce-backend/utils"
@@ -16,20 +17,24 @@ import (
 )
 
 func main() {
-	// Load .env
+	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️ Could not load .env file:", err)
+		log.Println("⚠️ Could not load .env file, relying on environment variables")
 	}
 
-	// JWT Secret
+	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
 
-	// Connect DB
+	// Connect to MongoDB
 	config.ConnectDB()
-	fmt.Println("✅ Connected to MongoDB:", config.DB.Name())
+	fmt.Println("✅ Database connected")
 
-	// Send test admin email (non-blocking)
+	// Start email worker for async emails
+	utils.StartEmailWorker()
+	fmt.Println("✅ Email worker started")
+
+	// --- TEST ADMIN EMAIL (non-blocking) ---
 	go func() {
 		if err := utils.SendTestAdminEmail(); err != nil {
 			log.Println("⚠️ Admin test email failed:", err)
@@ -38,15 +43,18 @@ func main() {
 		}
 	}()
 
-	// TEMP TEST ORDER DATA
+	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",
 		PaymentIntentID: "pi_3SajFMRhIgDY5Lro1wAWon5R",
 		Status:          "pending",
 	})
 
-	// Gin setup
+	// Initialize Gin router
 	router := gin.Default()
+
+	// Payment webhook
+	router.POST("/payment/webhook", controllers.StripeWebhook)
 
 	// Security headers
 	router.Use(func(c *gin.Context) {
@@ -58,23 +66,27 @@ func main() {
 		c.Next()
 	})
 
-	// CORS
+	// CORS configuration
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "*"},
+		AllowOrigins: []string{
+			"http://localhost:3000", // Local dev
+			"*",                     // Allow all for now (change later)
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
-	// Setup routes
+	// Set up all routes
 	routes.SetUpRoutes(router)
 
+	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-
 	fmt.Println("Server running on PORT:", port)
+
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}

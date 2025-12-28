@@ -39,6 +39,9 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// Send welcome/confirmation email asynchronously
+	utils.SendConfirmationEmail(user.Email, user.Name, "N/A", "signup", 0, 0, 0)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
 	})

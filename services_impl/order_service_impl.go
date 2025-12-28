@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"beauty-ecommerce-backend/services"
@@ -153,12 +154,22 @@ func (s *orderServiceImpl) MarkOrderAsPaid(paymentReference string) error {
 		}
 	}
 
+	// Get user info
 	user, _ := s.userRepo.FindById(order.UserID.Hex())
-	if err := utils.SendConfirmationEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice); err != nil {
-		fmt.Println("⚠️ Failed to send customer confirmation email:", err)
-	}
-	if err := utils.SendAdminNotification(order.ID.Hex(), user.Name, user.Email, order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice); err != nil {
-		fmt.Println("⚠️ Failed to send admin notification email:", err)
+
+	// Send customer confirmation email (async)
+	utils.SendConfirmationEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice)
+
+	// Send admin notification email (async)
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail != "" {
+		subject := fmt.Sprintf("New Order Paid - %s", order.ID.Hex())
+		html := fmt.Sprintf(`
+			<p>Order <b>%s</b> paid by <b>%s</b> (%s).</p>
+			<p>Delivery: %s</p>
+			<p>Subtotal: £%.2f | Shipping: £%.2f | Total: £%.2f</p>`,
+			order.ID.Hex(), user.Name, user.Email, order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice)
+		utils.QueueEmail(adminEmail, subject, "", html)
 	}
 
 	return nil
@@ -166,7 +177,31 @@ func (s *orderServiceImpl) MarkOrderAsPaid(paymentReference string) error {
 
 // -------------------- PAYMENT FAIL / REFUND / DISPUTE --------------------
 func (s *orderServiceImpl) MarkOrderAsFailed(paymentReference string) error {
-	return s.handleOrderFailure(paymentReference, "failed")
+	order, err := s.orderRepo.FindByReference(paymentReference)
+	if err != nil {
+		return err
+	}
+
+	// Restore stock
+	if err := s.restoreStock(order); err != nil {
+		fmt.Println("⚠️ Failed to restore stock on order failure:", err)
+	}
+
+	// Notify customer
+	user, _ := s.userRepo.FindById(order.UserID.Hex())
+	utils.SendFailedPaymentEmail(user.Email, user.Name, order.ID.Hex())
+
+	// Notify admin
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail != "" {
+		subject := fmt.Sprintf("Payment FAILED - %s", order.ID.Hex())
+		html := fmt.Sprintf("<p>Payment for order <b>%s</b> by <b>%s</b> (%s) FAILED.</p>", order.ID.Hex(), user.Name, user.Email)
+		utils.QueueEmail(adminEmail, subject, "", html)
+	}
+
+	order.Status = "failed"
+	order.UpdatedAt = time.Now()
+	return s.orderRepo.UpdateOrder(order)
 }
 
 func (s *orderServiceImpl) MarkOrderAsRefunded(paymentReference string) error {
@@ -214,13 +249,15 @@ func (s *orderServiceImpl) restoreStock(order *models.Order) error {
 }
 
 // -------------------- SHIPMENT EMAIL --------------------
-func (s *orderServiceImpl) SendShippedEmail(order *models.Order) error {
+func (s *orderServiceImpl) SendShippedEmail(order *models.Order) {
 	user, err := s.userRepo.FindById(order.UserID.Hex())
 	if err != nil {
-		return err
+		fmt.Println("⚠️ Could not find user for shipment email:", err)
+		return
 	}
 
-	return utils.SendShipmentEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType)
+	// Queue shipment email (non-blocking)
+	utils.SendShipmentEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType)
 }
 
 // -------------------- OTHER INTERFACE METHODS --------------------
@@ -251,10 +288,9 @@ func (s *orderServiceImpl) UpdateOrderStatus(orderID primitive.ObjectID, status 
 		return err
 	}
 
+	// Send shipment email asynchronously if order is shipped
 	if status == "shipped" {
-		if err := s.SendShippedEmail(order); err != nil {
-			fmt.Println("⚠️ Failed to send shipment email:", err)
-		}
+		go s.SendShippedEmail(order) // non-blocking
 	}
 
 	return nil
