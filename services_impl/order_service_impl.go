@@ -112,7 +112,9 @@ func (s *orderServiceImpl) CancelOrder(orderID, userID primitive.ObjectID) (*mod
 	}
 
 	// Restore stock
-	s.restoreStock(order)
+	if err := s.restoreStock(order); err != nil {
+		fmt.Println("⚠️ Failed to restore stock on cancellation:", err)
+	}
 
 	return order, nil
 }
@@ -152,8 +154,12 @@ func (s *orderServiceImpl) MarkOrderAsPaid(paymentReference string) error {
 	}
 
 	user, _ := s.userRepo.FindById(order.UserID.Hex())
-	_ = utils.SendConfirmationEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice)
-	_ = utils.SendAdminNotification(order.ID.Hex(), user.Name, user.Email, order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice)
+	if err := utils.SendConfirmationEmail(user.Email, user.Name, order.ID.Hex(), order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice); err != nil {
+		fmt.Println("⚠️ Failed to send customer confirmation email:", err)
+	}
+	if err := utils.SendAdminNotification(order.ID.Hex(), user.Name, user.Email, order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice); err != nil {
+		fmt.Println("⚠️ Failed to send admin notification email:", err)
+	}
 
 	return nil
 }
@@ -183,14 +189,17 @@ func (s *orderServiceImpl) handleOrderFailure(paymentReference, status string) e
 		if err := s.orderRepo.UpdateOrder(order); err != nil {
 			return err
 		}
-		s.restoreStock(order)
+
+		if err := s.restoreStock(order); err != nil {
+			fmt.Println("⚠️ Failed to restore stock on order failure:", err)
+		}
 	}
 
 	return nil
 }
 
 // -------------------- RESTORE STOCK --------------------
-func (s *orderServiceImpl) restoreStock(order *models.Order) {
+func (s *orderServiceImpl) restoreStock(order *models.Order) error {
 	for _, item := range order.Items {
 		productID, _ := primitive.ObjectIDFromHex(item.ProductID)
 		update := bson.M{
@@ -198,9 +207,10 @@ func (s *orderServiceImpl) restoreStock(order *models.Order) {
 			"$set": bson.M{"updated_at": time.Now()},
 		}
 		if err := s.productRepo.Update(productID, update); err != nil {
-			fmt.Println("⚠️ Failed to restore stock:", err)
+			return err
 		}
 	}
+	return nil
 }
 
 // -------------------- SHIPMENT EMAIL --------------------
@@ -232,20 +242,17 @@ func (s *orderServiceImpl) UpdateOrderStatus(orderID primitive.ObjectID, status 
 		"updated_at": time.Now(),
 	}
 
-	// Update order in the database
 	if err := s.orderRepo.Update(orderID, update); err != nil {
 		return err
 	}
 
-	// Fetch the updated order
 	order, err := s.orderRepo.FindByID(orderID)
 	if err != nil {
 		return err
 	}
 
-	// If the new status is "shipped", send shipment email
 	if status == "shipped" {
-		if err := s.SendShippedEmail(order); err != nil { // pass the order struct
+		if err := s.SendShippedEmail(order); err != nil {
 			fmt.Println("⚠️ Failed to send shipment email:", err)
 		}
 	}
