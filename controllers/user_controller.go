@@ -23,6 +23,7 @@ func InitUserController(userRepo *repositories.UserRepository) {
 
 func Register(c *gin.Context) {
 	var user models.User
+
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request format"})
 		return
@@ -38,20 +39,30 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Prepare email content
-	subject := "Welcome to Beauty Shop!"
-	plainText := "Hello " + user.Name + ", welcome to Beauty Shop! We're excited to have you on board."
-	htmlContent := "<h1>Hello " + user.Name + "</h1><p>Welcome to Beauty Shop! We're excited to have you on board.</p>"
+	// ✅ Respond immediately (DO NOT BLOCK)
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "User created successfully",
+	})
 
-	// Send email and log error synchronously for now
-	err := utils.SendEmail(user.Email, subject, plainText, htmlContent)
-	if err != nil {
-		fmt.Println("Failed to send welcome email:", err)
-		c.JSON(http.StatusCreated, gin.H{"message": "User created successfully, but failed to send email", "error": err.Error()})
-		return
-	}
+	// ✅ Prepare email content
+	subject := "Welcome to Beauty Shop 🎉"
+	plainText := fmt.Sprintf(
+		"Hello %s,\n\nWelcome to Beauty Shop! We're excited to have you on board.",
+		user.Name,
+	)
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User created successfully, email sent"})
+	htmlContent := fmt.Sprintf(`
+		<h2>Hello %s,</h2>
+		<p>Welcome to <strong>Beauty Shop</strong>! 🎉</p>
+		<p>We’re excited to have you on board.</p>
+	`, user.Name)
+
+	// ✅ Send email asynchronously (SAFE)
+	go func() {
+		if err := utils.SendEmail(user.Email, subject, plainText, htmlContent); err != nil {
+			fmt.Println("Email error:", err)
+		}
+	}()
 }
 
 func Login(c *gin.Context) {

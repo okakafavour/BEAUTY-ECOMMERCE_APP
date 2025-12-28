@@ -11,11 +11,18 @@ import (
 )
 
 func SendEmail(to, subject, text, html string) error {
-	host := os.Getenv("SMTP_HOST")         // smtp.mailersend.net
-	port := os.Getenv("SMTP_PORT")         // 587
-	username := os.Getenv("SMTP_USERNAME") // MS_xxxx@xxxx.mailersend.net
-	password := os.Getenv("SMTP_PASSWORD") // SMTP password
-	from := os.Getenv("SMTP_FROM")         // no-reply@batluxebeauty.com
+	host := os.Getenv("SMTP_HOST")
+	port := os.Getenv("SMTP_PORT")
+	username := os.Getenv("SMTP_USERNAME")
+	password := os.Getenv("SMTP_PASSWORD")
+	from := os.Getenv("SMTP_FROM")
+
+	// ✅ Hard validation (VERY IMPORTANT)
+	if host == "" || port == "" || username == "" || password == "" || from == "" {
+		return fmt.Errorf("SMTP environment variables not fully configured")
+	}
+
+	addr := host + ":" + port
 
 	auth := smtp.PlainAuth("", username, password, host)
 
@@ -28,13 +35,12 @@ func SendEmail(to, subject, text, html string) error {
 			html,
 	)
 
-	return smtp.SendMail(
-		host+":"+port,
-		auth,
-		from,
-		[]string{to},
-		message,
-	)
+	// ✅ Send with controlled failure
+	if err := smtp.SendMail(addr, auth, from, []string{to}, message); err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	return nil
 }
 
 func CreateStripePaymentIntentWithMetadata(
