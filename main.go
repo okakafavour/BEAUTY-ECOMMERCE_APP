@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"beauty-ecommerce-backend/config"
-	"beauty-ecommerce-backend/controllers"
 	"beauty-ecommerce-backend/middlewares"
 	"beauty-ecommerce-backend/routes"
 	"beauty-ecommerce-backend/utils"
@@ -17,22 +16,27 @@ import (
 )
 
 func main() {
+	// Load .env
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️ Could not load .env file:", err)
+	}
 
-	_ = godotenv.Load()
-
+	// JWT Secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
 
+	// Connect DB
 	config.ConnectDB()
-	fmt.Println("✅ Database connected")
+	fmt.Println("✅ Connected to MongoDB:", config.DB.Name())
 
-	// --- TEST ADMIN EMAIL ---
-	err := utils.SendTestAdminEmail()
-	if err != nil {
-		log.Println("Admin test email failed:", err)
-	} else {
-		log.Println("✅ Admin test email sent! Check inbox.")
-	}
+	// Send test admin email (non-blocking)
+	go func() {
+		if err := utils.SendTestAdminEmail(); err != nil {
+			log.Println("⚠️ Admin test email failed:", err)
+		} else {
+			log.Println("✅ Admin test email sent! Check inbox.")
+		}
+	}()
 
 	// TEMP TEST ORDER DATA
 	utils.AddTestOrder(&utils.Order{
@@ -41,9 +45,8 @@ func main() {
 		Status:          "pending",
 	})
 
+	// Gin setup
 	router := gin.Default()
-
-	router.POST("/payment/webhook", controllers.StripeWebhook)
 
 	// Security headers
 	router.Use(func(c *gin.Context) {
@@ -55,17 +58,15 @@ func main() {
 		c.Next()
 	})
 
-	// CORS Config
+	// CORS
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000", // Local dev
-			"*",                     // Allow all for now (change later)
-		},
+		AllowOrigins:     []string{"http://localhost:3000", "*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
+	// Setup routes
 	routes.SetUpRoutes(router)
 
 	port := os.Getenv("PORT")
@@ -74,7 +75,6 @@ func main() {
 	}
 
 	fmt.Println("Server running on PORT:", port)
-
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
