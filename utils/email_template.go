@@ -1,6 +1,10 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+	"net/smtp"
+	"os"
+)
 
 func OrderConfirmationEmail(name, orderID, deliveryType string, subtotal, shippingFee, total float64) (string, string) {
 	subject := "We’ve received your order"
@@ -144,4 +148,50 @@ func SendResetPasswordEmail(toEmail, resetLink string) error {
 	`, resetLink)
 
 	return SendEmail(toEmail, subject, plainText, html)
+}
+
+// SendShipmentEmail sends an email to the customer when their order is shipped
+func SendShipmentEmail(toEmail, toName, orderID, deliveryType string) error {
+	subject := "Your Order Has Been Shipped!"
+	body := fmt.Sprintf(`
+Hello %s,
+
+Good news! Your order <b>%s</b> has been shipped.
+
+Delivery type: %s
+
+You can expect it to arrive soon.
+
+Thank you for shopping with Beauty Shop ❤️
+
+Beauty Shop
+Official order notification
+Support: support@batluxebeauty.com
+`, toName, orderID, deliveryType)
+
+	// Read SMTP settings from environment variables
+	from := os.Getenv("SMTP_EMAIL")
+	password := os.Getenv("SMTP_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+
+	if from == "" || password == "" || smtpHost == "" || smtpPort == "" {
+		return fmt.Errorf("SMTP configuration is missing in .env")
+	}
+
+	msg := "From: " + from + "\n" +
+		"To: " + toEmail + "\n" +
+		"Subject: " + subject + "\n\n" +
+		body
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{toEmail}, []byte(msg))
+	if err != nil {
+		fmt.Println("Failed to send shipment email:", err)
+		return err
+	}
+
+	fmt.Println("Shipment email sent to:", toEmail)
+	return nil
 }

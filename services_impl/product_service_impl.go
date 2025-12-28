@@ -36,7 +36,20 @@ func (s *productServiceImpl) CreateProduct(product *models.Product) error {
 
 // GET ALL PRODUCTS
 func (s *productServiceImpl) GetAllProducts() ([]models.Product, error) {
-	return s.productRepo.FindAll()
+	products, err := s.productRepo.FindAll()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range products {
+		if products[i].Stock <= 0 {
+			products[i].OutOfStock = true // Add this field to your Product struct
+		} else {
+			products[i].OutOfStock = false
+		}
+	}
+
+	return products, nil
 }
 
 // GET PRODUCT BY ID
@@ -73,9 +86,11 @@ func (s *productServiceImpl) UpdateProduct(id string, product models.Product) er
 	if product.Price != 0 {
 		update["price"] = product.Price
 	}
-	if product.Stock != 0 {
+
+	if product.Stock >= 0 {
 		update["stock"] = product.Stock
 	}
+
 	if product.Category != "" {
 		update["category"] = product.Category
 	}
@@ -89,7 +104,6 @@ func (s *productServiceImpl) UpdateProduct(id string, product models.Product) er
 	return s.productRepo.Update(objID, update)
 }
 
-// DELETE PRODUCT
 // DELETE PRODUCT
 func (s *productServiceImpl) DeleteProduct(id string) error {
 	objID, err := primitive.ObjectIDFromHex(id)

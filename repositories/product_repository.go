@@ -91,3 +91,15 @@ func (r *ProductRepository) Delete(id primitive.ObjectID) error {
 	}
 	return nil
 }
+
+func (r *ProductRepository) UpdateWithFilter(filter bson.M, update bson.M) (*mongo.UpdateResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	res, err := r.Collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}

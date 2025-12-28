@@ -15,6 +15,7 @@ type Product struct {
 	ImageURL    string             `bson:"image_url" json:"image_url"`
 	ImageID     string             `bson:"image_id" json:"image_id"` // <- make sure this is exact
 	Stock       int                `bson:"stock" json:"stock"`
+	OutOfStock  bool               `bson:"out_of_stock"` // new field for convenience
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt   time.Time          `bson:"updated_at" json:"updated_at"`
 }
