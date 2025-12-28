@@ -21,6 +21,7 @@ func InitUserController(userRepo *repositories.UserRepository) {
 	userService = servicesimpl.NewUserService(userRepo)
 }
 
+// Register creates a new user and sends welcome email via Brevo
 func Register(c *gin.Context) {
 	var user models.User
 
@@ -39,14 +40,23 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Send welcome/confirmation email asynchronously
-	utils.SendConfirmationEmail(user.Email, user.Name, "N/A", "signup", 0, 0, 0)
+	// Send welcome email asynchronously
+	go func() {
+		subject := "Welcome to Beauty Shop!"
+		html := fmt.Sprintf("<h1>Hello %s,</h1><p>Thanks for signing up!</p>", user.Name)
+		if err := utils.SendEmailWithBrevo(user.Email, subject, html); err != nil {
+			fmt.Println("⚠️ Failed to send signup email:", err)
+		} else {
+			fmt.Println("✅ Signup email sent to", user.Email)
+		}
+	}()
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
 	})
 }
 
+// Login authenticates user and returns JWT token
 func Login(c *gin.Context) {
 	var input models.User
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -63,19 +73,21 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
 
-// Test endpoint to confirm email sending works
+// TestEmail sends a test email via Brevo
 func TestEmail(c *gin.Context) {
-	// Replace with your email to test
-	err := utils.SendEmail("testuser@gmail.com", "Test Email", "This is a test", "<p>This is a test</p>")
-	if err != nil {
-		fmt.Println("Error sending email:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	fmt.Println("Email sent successfully")
-	c.JSON(http.StatusOK, gin.H{"message": "Email sent"})
+	go func() {
+		err := utils.SendEmailWithBrevo("testuser@gmail.com", "Test Email", "<p>This is a test email from Brevo</p>")
+		if err != nil {
+			fmt.Println("⚠️ Error sending test email:", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		fmt.Println("✅ Test email sent successfully")
+		c.JSON(http.StatusOK, gin.H{"message": "Email sent"})
+	}()
 }
 
+// GetProfile returns the current user profile
 func GetProfile(c *gin.Context) {
 	userID, _ := utils.ExtractUserIDAndRole(c)
 
@@ -94,6 +106,7 @@ func GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+// ForgotPassword generates a reset token and sends it via Brevo
 func ForgotPassword(c *gin.Context) {
 	type Request struct {
 		Email string `json:"email" binding:"required,email"`
@@ -107,24 +120,15 @@ func ForgotPassword(c *gin.Context) {
 
 	user, err := userService.GetUserByEmail(req.Email)
 	if err != nil {
-		// Don't reveal if email exists
 		c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
 		return
 	}
 
-	// Generate token
 	token := utils.GenerateRandomToken(32)
-
-	// Hash token before saving
 	hashedToken := utils.HashToken(token)
-
 	expiry := time.Now().Add(15 * time.Minute)
 
-	err = userService.SavePasswordResetToken(
-		user.ID,
-		hashedToken,
-		expiry,
-	)
+	err = userService.SavePasswordResetToken(user.ID, hashedToken, expiry)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "could not save token"})
 		return
@@ -132,22 +136,29 @@ func ForgotPassword(c *gin.Context) {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:8080" // fallback for local testing
+		frontendURL = "http://localhost:8080"
 	}
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
-	go utils.SendResetPasswordEmail(user.Email, resetLink)
+	// Send reset password email asynchronously via Brevo
+	go func() {
+		subject := "Password Reset Request"
+		html := fmt.Sprintf("<p>Click to reset your password: <a href='%s'>Reset Password</a></p>", resetLink)
+		if err := utils.SendEmailWithBrevo(user.Email, subject, html); err != nil {
+			fmt.Println("⚠️ Failed to send reset password email:", err)
+		} else {
+			fmt.Println("✅ Reset password email sent to", user.Email)
+		}
+	}()
 
 	c.JSON(200, gin.H{
 		"message": "If email exists, reset link sent",
 	})
 }
 
+// ResetPassword handles GET (link click) and POST (update password) requests
 func ResetPassword(c *gin.Context) {
-	// -----------------------------
-	// Handle GET request (link click)
-	// -----------------------------
 	if c.Request.Method == http.MethodGet {
 		tokenQuery := c.Query("token")
 		if tokenQuery == "" {
@@ -161,9 +172,6 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// -----------------------------
-	// Handle POST request (reset password)
-	// -----------------------------
 	type Request struct {
 		Token       string `json:"token" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required,min=8"`
@@ -175,36 +183,29 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	// Hash token to compare with DB
 	hashedToken := utils.HashToken(req.Token)
-
-	// Get user by reset token
 	user, err := userService.GetUserByResetToken(hashedToken)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired token"})
 		return
 	}
 
-	// Check token expiry
 	if time.Now().After(user.ResetPasswordExpiry) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "token expired"})
 		return
 	}
 
-	// Hash the new password
 	hashedPassword, err := utils.HashPassword(req.NewPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 		return
 	}
 
-	// Update password in DB
 	if err := userService.UpdatePassword(user.ID, hashedPassword); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
 		return
 	}
 
-	// Clear reset token so old password cannot be reused
 	_ = userService.ClearResetToken(user.ID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successful"})
