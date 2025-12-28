@@ -92,7 +92,7 @@ func main() {
 	fmt.Println("SMTP_HOST:", os.Getenv("SMTP_HOST"))
 	fmt.Println("SMTP_PORT:", os.Getenv("SMTP_PORT"))
 	fmt.Println("SMTP_USERNAME:", os.Getenv("SMTP_USERNAME"))
-	fmt.Println("SMTP_PASSWORD:", os.Getenv("SMTP_PASSWORD"))
+	fmt.Println("SMTP_PASSWORD:", os.Getenv("SMTP_PASSWORD") != "")
 	fmt.Println("SMTP_FROM:", os.Getenv("SMTP_FROM"))
 
 }
