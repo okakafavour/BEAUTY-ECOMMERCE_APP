@@ -111,7 +111,6 @@ func GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-// ForgotPassword generates a reset token and sends it via Brevo
 func ForgotPassword(c *gin.Context) {
 	type Request struct {
 		Email string `json:"email" binding:"required,email"`
@@ -141,39 +140,27 @@ func ForgotPassword(c *gin.Context) {
 
 	frontendURL := os.Getenv("FRONTEND_URL")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:8080"
+		frontendURL = "http://localhost:3000"
 	}
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
-	// Send reset password email asynchronously via Brevo
-	go func() {
-		subject := "Password Reset Request"
-		html := fmt.Sprintf("<p>Click to reset your password: <a href='%s'>Reset Password</a></p>", resetLink)
-		if err := utils.SendEmailWithBrevo(user.Email, subject, html); err != nil {
-			fmt.Println("⚠️ Failed to send reset password email:", err)
-		} else {
-			fmt.Println("✅ Reset password email sent to", user.Email)
-		}
-	}()
+	// Send reset email asynchronously
+	go utils.SendResetPasswordEmail(user.Email, resetLink)
 
-	c.JSON(200, gin.H{
-		"message": "If email exists, reset link sent",
-	})
+	c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
 }
 
 // ResetPassword handles GET (link click) and POST (update password) requests
 func ResetPassword(c *gin.Context) {
 	if c.Request.Method == http.MethodGet {
+		// Just validate token
 		tokenQuery := c.Query("token")
 		if tokenQuery == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"token":   tokenQuery,
-			"message": "Token received. Use POST to reset password with new password.",
-		})
+		c.JSON(http.StatusOK, gin.H{"token": tokenQuery})
 		return
 	}
 
@@ -184,7 +171,7 @@ func ResetPassword(c *gin.Context) {
 
 	var req Request
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input, password must be at least 8 characters"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
 		return
 	}
 
@@ -200,18 +187,17 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 
-	hashedPassword, err := utils.HashPassword(req.NewPassword)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
-		return
-	}
-
-	if err := userService.UpdatePassword(user.ID, hashedPassword); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update password"})
-		return
-	}
-
+	hashedPassword, _ := utils.HashPassword(req.NewPassword)
+	_ = userService.UpdatePassword(user.ID, hashedPassword)
 	_ = userService.ClearResetToken(user.ID)
+
+	// Optional: notify user their password was reset
+	subject := "Your password has been reset"
+	html := fmt.Sprintf(`
+	<h2>Hello %s,</h2>
+	<p>Your password has been successfully reset.</p>
+	<p>If this wasn't you, please contact support immediately.</p>`, user.Name)
+	utils.QueueEmail(user.Email, subject, "", html)
 
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successful"})
 }

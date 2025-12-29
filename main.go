@@ -31,6 +31,8 @@ func main() {
 
 	utils.InitMailerSend()
 	fmt.Println("✅ MailerSend initialized")
+	utils.StartEmailWorker()
+	fmt.Println("✅ Email worker started")
 
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{

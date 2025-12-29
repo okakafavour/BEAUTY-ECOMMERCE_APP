@@ -53,14 +53,22 @@ func InitializePayment(c *gin.Context) {
 		return
 	}
 
-	pi, err := utils.CreateStripePaymentIntentWithMetadata(order.TotalPrice, orderIDHex, user.Email, user.Name)
+	pi, err := utils.CreateStripePaymentIntentWithMetadata(
+		order.TotalPrice,
+		orderIDHex,
+		user.Email,
+		user.Name,
+		order.DeliveryType,
+		order.Subtotal,
+		order.ShippingFee,
+		order.TotalPrice,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	err = PaymentOrderService.SaveOrderReference(orderIDHex, pi.ID)
-	if err != nil {
+	if err := PaymentOrderService.SaveOrderReference(orderIDHex, pi.ID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save payment reference"})
 		return
 	}
@@ -111,10 +119,7 @@ func StripeWebhook(c *gin.Context) {
 
 	fmt.Println("🔥 Stripe event received:", event.Type)
 
-	adminEmail := os.Getenv("ADMIN_EMAIL")
-
 	switch event.Type {
-
 	case "payment_intent.succeeded":
 		var pi stripe.PaymentIntent
 		if err := json.Unmarshal(event.Data.Raw, &pi); err != nil {
@@ -127,39 +132,23 @@ func StripeWebhook(c *gin.Context) {
 			fmt.Println("❌ Failed to mark order as paid:", err)
 		}
 
-		// Async emails
 		go func() {
+			// Extract metadata
 			userEmail := pi.Metadata["user_email"]
 			userName := pi.Metadata["user_name"]
 			orderID := pi.Metadata["order_id"]
 			deliveryType := pi.Metadata["delivery_type"]
-			subtotalStr := pi.Metadata["subtotal"]
-			shippingStr := pi.Metadata["shipping_fee"]
-			totalStr := pi.Metadata["total_price"]
+			subtotal, _ := strconv.ParseFloat(pi.Metadata["subtotal"], 64)
+			shipping, _ := strconv.ParseFloat(pi.Metadata["shipping_fee"], 64)
+			total, _ := strconv.ParseFloat(pi.Metadata["total_price"], 64)
 
-			// Fallback values
 			if userEmail == "" {
 				userEmail = "okakafavour81@gmail.com"
 			}
 
-			// Convert strings to float64 safely
-			subtotal, _ := strconv.ParseFloat(subtotalStr, 64)
-			shipping, _ := strconv.ParseFloat(shippingStr, 64)
-			total, _ := strconv.ParseFloat(totalStr, 64)
-
-			// Send customer email
-			utils.SendConfirmationEmail(userEmail, userName, orderID, deliveryType, subtotal, shipping, total)
-
-			// Send admin email
-			if adminEmail != "" {
-				subject := fmt.Sprintf("New Order Paid - %s", orderID)
-				html := fmt.Sprintf(`
-					<p>Order <b>%s</b> paid by <b>%s</b> (%s).</p>
-					<p>Delivery: %s</p>
-					<p>Subtotal: £%.2f | Shipping: £%.2f | Total: £%.2f</p>`,
-					orderID, userName, userEmail, deliveryType, subtotal, shipping, total)
-				utils.QueueEmail(adminEmail, subject, "", html)
-			}
+			// Send emails using helpers
+			utils.SendCustomerPaymentSuccess(userEmail, userName, orderID, deliveryType, subtotal, shipping, total)
+			utils.SendAdminNotification(orderID, userName, userEmail, deliveryType, subtotal, shipping, total)
 		}()
 
 	case "payment_intent.payment_failed":
@@ -183,15 +172,8 @@ func StripeWebhook(c *gin.Context) {
 				userEmail = "okakafavour81@gmail.com"
 			}
 
-			// Customer failed email
 			utils.SendFailedPaymentEmail(userEmail, userName, orderID)
-
-			// Admin notification
-			if adminEmail != "" {
-				subject := fmt.Sprintf("Payment FAILED - %s", orderID)
-				html := fmt.Sprintf("<p>Payment for order <b>%s</b> by <b>%s</b> (%s) FAILED.</p>", orderID, userName, userEmail)
-				utils.QueueEmail(adminEmail, subject, "", html)
-			}
+			utils.SendAdminNotification(orderID, userName, userEmail, "N/A", 0, 0, 0)
 		}()
 
 	case "charge.refunded":
