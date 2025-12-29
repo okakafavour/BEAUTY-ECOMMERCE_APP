@@ -13,9 +13,14 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("⚠️ Could not load .env file, relying on environment variables")
+	}
 	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
