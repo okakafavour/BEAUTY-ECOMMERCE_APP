@@ -43,17 +43,21 @@ func Register(c *gin.Context) {
 
 	log.Println("🧪 Register: user created, sending welcome email")
 
-	// Send welcome email asynchronously (MailerSend)
-	go func() {
+	// Send welcome email asynchronously via MailerSend
+	go func(email, name string) {
 		subject := "Welcome to Beauty Shop ✨"
-		html := fmt.Sprintf("<h2>Hello %s 👋</h2><p>Your account has been created successfully.</p>", user.Name)
+		html := fmt.Sprintf(`
+		<h2>Hello %s 👋</h2>
+		<p>Your account has been created successfully.</p>
+		<p>Welcome to Beauty Shop 💄</p>
+	`, name)
 
-		if err := utils.SendEmailWithBrevo(user.Email, subject, html); err != nil {
-			log.Println("⚠️ Signup email failed:", err)
+		if err := utils.SendMailSenderEmail(email, name, subject, html); err != nil {
+			log.Println("⚠️ Welcome email failed:", err)
 		} else {
-			log.Println("✅ Signup email sent to", user.Email)
+			log.Println("✅ Welcome email sent to", email)
 		}
-	}()
+	}(user.Email, user.Name)
 
 }
 
