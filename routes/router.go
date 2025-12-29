@@ -151,4 +151,6 @@ func SetUpRoutes(r *gin.Engine) {
 		})
 	})
 
+	r.GET("/test-proof-email", controllers.SendProofEmail)
+
 }
