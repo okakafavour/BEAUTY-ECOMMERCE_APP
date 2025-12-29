@@ -96,7 +96,7 @@ func SetUpRoutes(r *gin.Engine) {
 	r.POST("/auth/forgot-password", controllers.ForgotPassword)
 	r.GET("/reset-password", controllers.ResetPassword)
 	r.POST("/auth/reset-password", controllers.ResetPassword)
-	r.GET("/test-email", controllers.TestEmail)
+	// r.GET("/test-email", controllers.TestEmail)
 
 	// CART
 	cartRoutes := r.Group("/cart")
