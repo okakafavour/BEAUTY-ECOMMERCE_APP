@@ -3,8 +3,6 @@ package controllers
 import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
-	"beauty-ecommerce-backend/utils"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -101,25 +99,25 @@ func CreateOrder(c *gin.Context) {
 
 	// Send order confirmation email asynchronously
 	go func() {
-		user, err := userService.GetUserByID(userID) // fetch user details
-		if err != nil {
-			fmt.Println("Failed to fetch user for email:", err)
-			return
-		}
+		// user, err := userService.GetUserByID(userID) // fetch user details
+		// if err != nil {
+		// 	fmt.Println("Failed to fetch user for email:", err)
+		// 	return
+		// }
 
-		subject, html := utils.OrderConfirmationEmail(
-			user.Name,
-			createdOrder.ID.Hex(),
-			createdOrder.DeliveryType,
-			createdOrder.Subtotal,
-			createdOrder.ShippingFee,
-			createdOrder.TotalPrice,
-		)
+		// subject, html := utils.OrderConfirmationEmail(
+		// 	user.Name,
+		// 	createdOrder.ID.Hex(),
+		// 	createdOrder.DeliveryType,
+		// 	createdOrder.Subtotal,
+		// 	createdOrder.ShippingFee,
+		// 	createdOrder.TotalPrice,
+		// )
 
-		err = utils.SendEmail(user.Email, subject, "", html)
-		if err != nil {
-			fmt.Println("Failed to send order confirmation email:", err)
-		}
+		// err = utils.SendEmail(user.Email, subject, "", html)
+		// if err != nil {
+		// 	fmt.Println("Failed to send order confirmation email:", err)
+		// }
 	}()
 }
 

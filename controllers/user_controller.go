@@ -7,6 +7,7 @@ import (
 	servicesimpl "beauty-ecommerce-backend/services_impl"
 	"beauty-ecommerce-backend/utils"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -40,20 +41,20 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Send welcome email asynchronously
+	log.Println("🧪 Register: user created, sending welcome email")
+
+	// Send welcome email asynchronously (MailerSend)
 	go func() {
-		subject := "Welcome to Beauty Shop!"
-		html := fmt.Sprintf("<h1>Hello %s,</h1><p>Thanks for signing up!</p>", user.Name)
+		subject := "Welcome to Beauty Shop ✨"
+		html := fmt.Sprintf("<h2>Hello %s 👋</h2><p>Your account has been created successfully.</p>", user.Name)
+
 		if err := utils.SendEmailWithBrevo(user.Email, subject, html); err != nil {
-			fmt.Println("⚠️ Failed to send signup email:", err)
+			log.Println("⚠️ Signup email failed:", err)
 		} else {
-			fmt.Println("✅ Signup email sent to", user.Email)
+			log.Println("✅ Signup email sent to", user.Email)
 		}
 	}()
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User created successfully",
-	})
 }
 
 // Login authenticates user and returns JWT token

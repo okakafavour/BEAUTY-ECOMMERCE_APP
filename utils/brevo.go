@@ -3,57 +3,67 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 )
 
-type BrevoEmail struct {
-	Sender      map[string]string   `json:"sender"`
-	To          []map[string]string `json:"to"`
-	Subject     string              `json:"subject"`
-	HtmlContent string              `json:"htmlContent"`
+type brevoEmailRequest struct {
+	Sender struct {
+		Email string `json:"email"`
+		Name  string `json:"name"`
+	} `json:"sender"`
+	To []struct {
+		Email string `json:"email"`
+		Name  string `json:"name,omitempty"`
+	} `json:"to"`
+	Subject     string `json:"subject"`
+	HTMLContent string `json:"htmlContent"`
 }
 
-func SendEmailWithBrevo(toEmail, subject, htmlContent string) error {
+func SendEmailWithBrevo(toEmail, subject, html string) error {
 	apiKey := os.Getenv("BREVO_API_KEY")
 	senderEmail := os.Getenv("BREVO_SENDER_EMAIL")
 	senderName := os.Getenv("BREVO_SENDER_NAME")
 
-	email := BrevoEmail{
-		Sender: map[string]string{
-			"email": senderEmail,
-			"name":  senderName,
-		},
-		To: []map[string]string{
-			{"email": toEmail},
-		},
-		Subject:     subject,
-		HtmlContent: htmlContent,
+	if apiKey == "" || senderEmail == "" {
+		return errors.New("Brevo env vars missing")
 	}
 
-	payload, err := json.Marshal(email)
+	payload := brevoEmailRequest{}
+	payload.Sender.Email = senderEmail
+	payload.Sender.Name = senderName
+	payload.Subject = subject
+	payload.HTMLContent = html
+	payload.To = append(payload.To, struct {
+		Email string `json:"email"`
+		Name  string `json:"name,omitempty"`
+	}{
+		Email: toEmail,
+	})
+
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(
+		"POST",
+		"https://api.brevo.com/v3/smtp/email",
+		bytes.NewBuffer(body),
+	)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("api-key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("brevo API returned status %d", resp.StatusCode)
+		return errors.New("brevo email failed")
 	}
 
 	return nil

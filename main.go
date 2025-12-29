@@ -16,11 +16,6 @@ import (
 )
 
 func main() {
-	// Load environment variables
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Println("⚠️ Could not load .env file, relying on environment variables")
-	// }
-
 	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
@@ -29,18 +24,8 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	// Start email worker for async emails
-	utils.StartEmailWorker()
-	fmt.Println("✅ Email worker started")
-
-	// --- TEST ADMIN EMAIL (non-blocking) ---
-	go func() {
-		if err := utils.SendTestAdminEmail(); err != nil {
-			log.Println("⚠️ Admin test email failed:", err)
-		} else {
-			log.Println("✅ Admin test email sent! Check inbox.")
-		}
-	}()
+	// Initialize email service (Brevo)
+	fmt.Println("✅ Email system ready")
 
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{
@@ -67,10 +52,7 @@ func main() {
 
 	// CORS configuration
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000", // Local dev
-			"*",                     // Allow all for now (change later)
-		},
+		AllowOrigins:     []string{"http://localhost:3000", "*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -89,10 +71,4 @@ func main() {
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
-	fmt.Println("SMTP_HOST:", os.Getenv("SMTP_HOST"))
-	fmt.Println("SMTP_PORT:", os.Getenv("SMTP_PORT"))
-	fmt.Println("SMTP_USERNAME:", os.Getenv("SMTP_USERNAME"))
-	fmt.Println("SMTP_PASSWORD:", os.Getenv("SMTP_PASSWORD") != "")
-	fmt.Println("SMTP_FROM:", os.Getenv("SMTP_FROM"))
-
 }
