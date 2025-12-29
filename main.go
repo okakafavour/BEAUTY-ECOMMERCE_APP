@@ -29,8 +29,8 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	// Initialize email service (Brevo)
-	fmt.Println("✅ Email system ready")
+	utils.InitMailerSend()
+	fmt.Println("✅ MailerSend initialized")
 
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{
