@@ -3,6 +3,9 @@ package controllers
 import (
 	"beauty-ecommerce-backend/models"
 	"beauty-ecommerce-backend/services"
+	"beauty-ecommerce-backend/utils"
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -22,10 +25,10 @@ func InitOrderController(os services.OrderService) {
 // -------------------------------
 // Create Order
 // POST /orders
-// -------------------------------
 func CreateOrder(c *gin.Context) {
 	var order models.Order
 
+	// Bind JSON
 	if err := c.ShouldBindJSON(&order); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -37,7 +40,7 @@ func CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// Set shipping fee based on delivery type
+	// Set shipping fee
 	switch order.DeliveryType {
 	case "standard":
 		order.ShippingFee = 3.99
@@ -45,6 +48,7 @@ func CreateOrder(c *gin.Context) {
 		order.ShippingFee = 4.99
 	}
 
+	// Get user ID from context
 	rawUserID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
@@ -74,7 +78,7 @@ func CreateOrder(c *gin.Context) {
 			return
 		}
 
-		product, err := orderService.GetProductByID(productID) // you might need a helper in your service
+		product, err := orderService.GetProductByID(productID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Product not found"})
 			return
@@ -89,6 +93,7 @@ func CreateOrder(c *gin.Context) {
 	order.TotalPrice = subtotal + order.ShippingFee
 	order.Status = "pending"
 
+	// Create order in DB
 	createdOrder, err := orderService.CreateOrder(order)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -97,28 +102,34 @@ func CreateOrder(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, createdOrder)
 
+	// Fetch user info for email
+	user, err := userService.GetUserByID(userID)
+	if err != nil {
+		log.Println("⚠️ Failed to fetch user for order email:", err)
+		return
+	}
+
 	// Send order confirmation email asynchronously
-	go func() {
-		// user, err := userService.GetUserByID(userID) // fetch user details
-		// if err != nil {
-		// 	fmt.Println("Failed to fetch user for email:", err)
-		// 	return
-		// }
+	go func(order models.Order, userEmail, userName string) {
+		subject := fmt.Sprintf("Order Confirmation - %s", order.ID.Hex())
+		html := fmt.Sprintf(`
+			<h2>Hello %s 👋</h2>
+			<p>Your order <b>%s</b> has been received successfully!</p>
+			<ul>
+				<li>Delivery Type: %s</li>
+				<li>Subtotal: $%.2f</li>
+				<li>Shipping Fee: $%.2f</li>
+				<li>Total: $%.2f</li>
+			</ul>
+			<p>Thank you for shopping with us!</p>
+		`, userName, order.ID.Hex(), order.DeliveryType, order.Subtotal, order.ShippingFee, order.TotalPrice)
 
-		// subject, html := utils.OrderConfirmationEmail(
-		// 	user.Name,
-		// 	createdOrder.ID.Hex(),
-		// 	createdOrder.DeliveryType,
-		// 	createdOrder.Subtotal,
-		// 	createdOrder.ShippingFee,
-		// 	createdOrder.TotalPrice,
-		// )
-
-		// err = utils.SendEmail(user.Email, subject, "", html)
-		// if err != nil {
-		// 	fmt.Println("Failed to send order confirmation email:", err)
-		// }
-	}()
+		if err := utils.SendMailSenderEmail(userEmail, userName, subject, html); err != nil {
+			log.Println("⚠️ Order confirmation email failed:", err)
+		} else {
+			log.Println("✅ Order confirmation email sent to", userEmail)
+		}
+	}(createdOrder, user.Email, user.Name)
 }
 
 // GET /orders
