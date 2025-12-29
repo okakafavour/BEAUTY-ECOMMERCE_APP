@@ -39,8 +39,8 @@ func SetUpRoutes(r *gin.Engine) {
 	// --------------------------
 	// CONTROLLERS
 	// --------------------------
-	controllers.InitUserController(userRepo) // ✅ Option A: pass repo
-	controllers.InitOrderController(orderService)
+	controllers.InitUserController(userRepo)
+	controllers.InitOrderController(orderService, userService) // ✅ pass both
 	controllers.InitPaymentController(orderService, userService)
 	controllers.InitProductController(productService)
 	controllers.InitCartController(cartService)
