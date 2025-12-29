@@ -78,20 +78,6 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
 
-// TestEmail sends a test email via Brevo
-func TestEmail(c *gin.Context) {
-	go func() {
-		err := utils.SendEmailWithBrevo("testuser@gmail.com", "Test Email", "<p>This is a test email from Brevo</p>")
-		if err != nil {
-			fmt.Println("⚠️ Error sending test email:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		fmt.Println("✅ Test email sent successfully")
-		c.JSON(http.StatusOK, gin.H{"message": "Email sent"})
-	}()
-}
-
 // GetProfile returns the current user profile
 func GetProfile(c *gin.Context) {
 	userID, _ := utils.ExtractUserIDAndRole(c)
@@ -146,7 +132,7 @@ func ForgotPassword(c *gin.Context) {
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
 	// Send reset email asynchronously
-	go utils.SendResetPasswordEmail(user.Email, resetLink)
+	go utils.SendResetPasswordEmail(user.Email, user.Name, resetLink) // ✅ correct
 
 	c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
 }

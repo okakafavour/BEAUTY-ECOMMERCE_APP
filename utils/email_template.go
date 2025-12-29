@@ -5,9 +5,6 @@ import (
 	"log"
 )
 
-// -----------------------------
-// Email Job Queue
-// -----------------------------
 type EmailJob struct {
 	To      string
 	ToName  string
@@ -17,9 +14,6 @@ type EmailJob struct {
 
 var EmailQueue = make(chan EmailJob, 100)
 
-// -----------------------------
-// Start Email Worker (MailerSend)
-// -----------------------------
 func StartEmailWorker() {
 	go func() {
 		for job := range EmailQueue {
@@ -29,7 +23,6 @@ func StartEmailWorker() {
 				job.Subject,
 				job.HTML,
 			)
-
 			if err != nil {
 				log.Println("⚠️ Email failed:", job.To, err)
 			} else {
