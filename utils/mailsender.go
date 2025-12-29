@@ -22,7 +22,7 @@ func InitMailerSend() {
 	log.Println("✅ MailerSend initialized")
 }
 
-func SendEmail(toEmail, toName, subject, html string) error {
+func SendMailSenderEmail(toEmail, toName, subject, html string) error {
 	if ms == nil {
 		return fmt.Errorf("MailerSend not initialized")
 	}
