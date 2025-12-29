@@ -43,22 +43,16 @@ func Register(c *gin.Context) {
 
 	log.Println("🧪 Register: user created, sending welcome email")
 
-	// Send welcome email asynchronously via MailerSend
-	go func(email, name string) {
-		subject := "Welcome to Beauty Shop ✨"
-		html := fmt.Sprintf(`
-		<h2>Hello %s 👋</h2>
-		<p>Your account has been created successfully.</p>
-		<p>Welcome to Beauty Shop 💄</p>
-	`, name)
+	// Queue welcome email via Brevo
+	subject := "Welcome to Beauty Shop ✨"
+	html := fmt.Sprintf(`
+	<h2>Hello %s 👋</h2>
+	<p>Your account has been created successfully.</p>
+	<p>Welcome to Beauty Shop 💄</p>
+`, user.Name)
+	utils.QueueEmail(user.Email, user.Name, subject, html)
 
-		if err := utils.SendMailSenderEmail(email, name, subject, html); err != nil {
-			log.Println("⚠️ Welcome email failed:", err)
-		} else {
-			log.Println("✅ Welcome email sent to", email)
-		}
-	}(user.Email, user.Name)
-
+	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
 }
 
 // Login authenticates user and returns JWT token
@@ -97,6 +91,7 @@ func GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+// ForgotPassword sends password reset email
 func ForgotPassword(c *gin.Context) {
 	type Request struct {
 		Email string `json:"email" binding:"required,email"`
@@ -131,8 +126,8 @@ func ForgotPassword(c *gin.Context) {
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
-	// Send reset email asynchronously
-	go utils.SendResetPasswordEmail(user.Email, user.Name, resetLink) // ✅ correct
+	// Queue reset email via Brevo
+	utils.SendResetPasswordEmail(user.Email, user.Name, resetLink)
 
 	c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
 }
@@ -140,7 +135,6 @@ func ForgotPassword(c *gin.Context) {
 // ResetPassword handles GET (link click) and POST (update password) requests
 func ResetPassword(c *gin.Context) {
 	if c.Request.Method == http.MethodGet {
-		// Just validate token
 		tokenQuery := c.Query("token")
 		if tokenQuery == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
@@ -177,13 +171,13 @@ func ResetPassword(c *gin.Context) {
 	_ = userService.UpdatePassword(user.ID, hashedPassword)
 	_ = userService.ClearResetToken(user.ID)
 
-	// Optional: notify user their password was reset
+	// Notify user asynchronously via Brevo
 	subject := "Your password has been reset"
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
 	<p>Your password has been successfully reset.</p>
 	<p>If this wasn't you, please contact support immediately.</p>`, user.Name)
-	utils.QueueEmail(user.Email, subject, "", html)
+	utils.QueueEmail(user.Email, user.Name, subject, html)
 
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successful"})
 }

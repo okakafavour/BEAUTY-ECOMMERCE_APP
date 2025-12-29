@@ -1,10 +1,17 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+
+	sib "github.com/sendinblue/APIv3-go-library/lib"
 )
 
+// -----------------------------
+// Email Queue
+// -----------------------------
 type EmailJob struct {
 	To      string
 	ToName  string
@@ -13,11 +20,58 @@ type EmailJob struct {
 }
 
 var EmailQueue = make(chan EmailJob, 100)
+var brevoClient *sib.APIClient
 
+// -----------------------------
+// Initialize Brevo
+// -----------------------------
+func InitBrevo() {
+	apiKey := os.Getenv("BREVO_API_KEY")
+	if apiKey == "" {
+		log.Println("⚠️ BREVO_API_KEY not set")
+		return
+	}
+
+	cfg := sib.NewConfiguration()
+	cfg.AddDefaultHeader("api-key", apiKey)
+	brevoClient = sib.NewAPIClient(cfg)
+	log.Println("✅ Brevo initialized")
+}
+
+// -----------------------------
+// Send email via Brevo
+// -----------------------------
+func sendBrevoEmail(toEmail, toName, subject, html string) error {
+	if brevoClient == nil {
+		return fmt.Errorf("Brevo client not initialized")
+	}
+
+	email := sib.SendSmtpEmail{
+		Sender: &sib.SendSmtpEmailSender{
+			Email: os.Getenv("BREVO_FROM"),
+			Name:  os.Getenv("BREVO_FROM_NAME"),
+		},
+		To: []sib.SendSmtpEmailTo{
+			{
+				Email: toEmail,
+				Name:  toName,
+			},
+		},
+		Subject:     subject,
+		HtmlContent: html,
+	}
+
+	_, _, err := brevoClient.TransactionalEmailsApi.SendTransacEmail(context.Background(), email)
+	return err
+}
+
+// -----------------------------
+// Start Email Worker
+// -----------------------------
 func StartEmailWorker() {
 	go func() {
 		for job := range EmailQueue {
-			err := SendMailSenderEmail(
+			err := sendBrevoEmail(
 				job.To,
 				job.ToName,
 				job.Subject,
@@ -33,7 +87,7 @@ func StartEmailWorker() {
 }
 
 // -----------------------------
-// Queue Email (NON-BLOCKING)
+// Queue Email (non-blocking)
 // -----------------------------
 func QueueEmail(to, toName, subject, html string) {
 	select {
@@ -50,11 +104,10 @@ func QueueEmail(to, toName, subject, html string) {
 }
 
 // -----------------------------
-// Order Emails
+// Email Templates
 // -----------------------------
 func SendConfirmationEmail(to, name, orderID, deliveryType string, subtotal, shippingFee, total float64) {
 	subject := "Your order payment update"
-
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
 	<p>We’ve received your payment and your order is now being processed.</p>
@@ -74,7 +127,6 @@ func SendConfirmationEmail(to, name, orderID, deliveryType string, subtotal, shi
 
 func SendFailedPaymentEmail(to, name, orderID string) {
 	subject := "Issue with your order payment"
-
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
 	<p>There was an issue processing your payment.</p>
@@ -87,7 +139,6 @@ func SendFailedPaymentEmail(to, name, orderID string) {
 
 func SendResetPasswordEmail(toEmail, name, resetLink string) {
 	subject := "Reset your Beauty Shop password"
-
 	html := fmt.Sprintf(`
 	<h2>Password Reset</h2>
 	<p>Click the button below to reset your password:</p>
@@ -100,7 +151,6 @@ func SendResetPasswordEmail(toEmail, name, resetLink string) {
 
 func SendShipmentEmail(toEmail, toName, orderID, deliveryType string) {
 	subject := "Your Order Has Been Shipped!"
-
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
 	<p>Your order <b>%s</b> has been shipped.</p>

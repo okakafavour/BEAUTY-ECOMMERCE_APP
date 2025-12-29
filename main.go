@@ -18,9 +18,11 @@ import (
 
 func main() {
 
+	// Load .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ Could not load .env file, relying on environment variables")
 	}
+
 	// Set JWT secret
 	middlewares.JwtSecret = []byte(os.Getenv("JWT_SECRET"))
 	fmt.Println("✅ JwtSecret set")
@@ -29,10 +31,10 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	utils.InitMailerSend()
-	fmt.Println("✅ MailerSend initialized")
-	utils.StartEmailWorker()
-	fmt.Println("✅ Email worker started")
+	// Initialize Brevo and email worker
+	utils.InitBrevo()        // initialize Brevo API client
+	utils.StartEmailWorker() // start asynchronous email queue
+	fmt.Println("✅ Brevo initialized and email worker started")
 
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{

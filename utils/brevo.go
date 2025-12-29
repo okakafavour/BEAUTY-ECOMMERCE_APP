@@ -1,70 +1,52 @@
 package utils
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
-	"net/http"
+	"context"
+	"fmt"
+	"log"
 	"os"
+
+	sib "github.com/sendinblue/APIv3-go-library/lib"
 )
 
-type brevoEmailRequest struct {
-	Sender struct {
-		Email string `json:"email"`
-		Name  string `json:"name"`
-	} `json:"sender"`
-	To []struct {
-		Email string `json:"email"`
-		Name  string `json:"name,omitempty"`
-	} `json:"to"`
-	Subject     string `json:"subject"`
-	HTMLContent string `json:"htmlContent"`
+var brevoClient *sib.APIClient
+
+// Initialize Brevo client
+func InitBrevo() {
+	apiKey := os.Getenv("BREVO_API_KEY")
+	if apiKey == "" {
+		log.Println("⚠️ BREVO_API_KEY not set")
+		return
+	}
+
+	cfg := sib.NewConfiguration()
+	cfg.AddDefaultHeader("api-key", apiKey)
+	brevoClient = sib.NewAPIClient(cfg)
+
+	log.Println("✅ Brevo initialized")
 }
 
-func SendEmailWithBrevo(toEmail, subject, html string) error {
-	apiKey := os.Getenv("BREVO_API_KEY")
-	senderEmail := os.Getenv("BREVO_SENDER_EMAIL")
-	senderName := os.Getenv("BREVO_SENDER_NAME")
-
-	if apiKey == "" || senderEmail == "" {
-		return errors.New("Brevo env vars missing")
+// SendBrevoEmail sends an email via Brevo API
+func SendBrevoEmail(toEmail, toName, subject, html string) error {
+	if brevoClient == nil {
+		return fmt.Errorf("Brevo client not initialized")
 	}
 
-	payload := brevoEmailRequest{}
-	payload.Sender.Email = senderEmail
-	payload.Sender.Name = senderName
-	payload.Subject = subject
-	payload.HTMLContent = html
-	payload.To = append(payload.To, struct {
-		Email string `json:"email"`
-		Name  string `json:"name,omitempty"`
-	}{
-		Email: toEmail,
-	})
-
-	body, _ := json.Marshal(payload)
-
-	req, err := http.NewRequest(
-		"POST",
-		"https://api.brevo.com/v3/smtp/email",
-		bytes.NewBuffer(body),
-	)
-	if err != nil {
-		return err
+	email := sib.SendSmtpEmail{
+		Sender: &sib.SendSmtpEmailSender{
+			Email: os.Getenv("BREVO_FROM"),
+			Name:  os.Getenv("BREVO_FROM_NAME"),
+		},
+		To: []sib.SendSmtpEmailTo{
+			{
+				Email: toEmail,
+				Name:  toName,
+			},
+		},
+		Subject:     subject,
+		HtmlContent: html,
 	}
 
-	req.Header.Set("api-key", apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		return errors.New("brevo email failed")
-	}
-
-	return nil
+	_, _, err := brevoClient.TransactionalEmailsApi.SendTransacEmail(context.Background(), email)
+	return err
 }
