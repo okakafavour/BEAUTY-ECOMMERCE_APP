@@ -1,12 +1,12 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
 
-	sib "github.com/sendinblue/APIv3-go-library/lib"
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
 // -----------------------------
@@ -20,49 +20,43 @@ type EmailJob struct {
 }
 
 var EmailQueue = make(chan EmailJob, 100)
-var brevoClient *sib.APIClient
+var sendgridClient *sendgrid.Client
 
 // -----------------------------
-// Initialize Brevo
+// Initialize SendGrid
 // -----------------------------
-func InitBrevo() {
-	apiKey := os.Getenv("BREVO_API_KEY")
+func InitSendGrid() {
+	apiKey := os.Getenv("SENDGRID_API_KEY")
 	if apiKey == "" {
-		log.Println("⚠️ BREVO_API_KEY not set")
+		log.Println("⚠️ SENDGRID_API_KEY not set")
 		return
 	}
-
-	cfg := sib.NewConfiguration()
-	cfg.AddDefaultHeader("api-key", apiKey)
-	brevoClient = sib.NewAPIClient(cfg)
-	log.Println("✅ Brevo initialized")
+	sendgridClient = sendgrid.NewSendClient(apiKey)
+	log.Println("✅ SendGrid initialized")
 }
 
 // -----------------------------
-// Send email via Brevo
+// Send email via SendGrid
 // -----------------------------
-func sendBrevoEmail(toEmail, toName, subject, html string) error {
-	if brevoClient == nil {
-		return fmt.Errorf("Brevo client not initialized")
+func sendSendGridEmail(toEmail, toName, subject, html string) error {
+	if sendgridClient == nil {
+		return fmt.Errorf("SendGrid client not initialized")
 	}
 
-	email := sib.SendSmtpEmail{
-		Sender: &sib.SendSmtpEmailSender{
-			Email: os.Getenv("BREVO_FROM"),
-			Name:  os.Getenv("BREVO_FROM_NAME"),
-		},
-		To: []sib.SendSmtpEmailTo{
-			{
-				Email: toEmail,
-				Name:  toName,
-			},
-		},
-		Subject:     subject,
-		HtmlContent: html,
+	from := mail.NewEmail(os.Getenv("SENDGRID_FROM_NAME"), os.Getenv("SENDGRID_FROM_EMAIL"))
+	to := mail.NewEmail(toName, toEmail)
+	message := mail.NewSingleEmail(from, subject, to, "", html)
+
+	response, err := sendgridClient.Send(message)
+	if err != nil {
+		return err
 	}
 
-	_, _, err := brevoClient.TransactionalEmailsApi.SendTransacEmail(context.Background(), email)
-	return err
+	if response.StatusCode >= 400 {
+		return fmt.Errorf("SendGrid error: %d - %s", response.StatusCode, response.Body)
+	}
+
+	return nil
 }
 
 // -----------------------------
@@ -71,12 +65,7 @@ func sendBrevoEmail(toEmail, toName, subject, html string) error {
 func StartEmailWorker() {
 	go func() {
 		for job := range EmailQueue {
-			err := sendBrevoEmail(
-				job.To,
-				job.ToName,
-				job.Subject,
-				job.HTML,
-			)
+			err := sendSendGridEmail(job.To, job.ToName, job.Subject, job.HTML)
 			if err != nil {
 				log.Println("⚠️ Email failed:", job.To, err)
 			} else {

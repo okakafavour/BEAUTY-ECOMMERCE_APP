@@ -22,7 +22,7 @@ func InitUserController(userRepo *repositories.UserRepository) {
 	userService = servicesimpl.NewUserService(userRepo)
 }
 
-// Register creates a new user and sends welcome email via Brevo
+// Register creates a new user and sends welcome email via SendGrid
 func Register(c *gin.Context) {
 	var user models.User
 
@@ -43,7 +43,6 @@ func Register(c *gin.Context) {
 
 	log.Println("🧪 Register: user created, sending welcome email")
 
-	// Queue welcome email via Brevo
 	subject := "Welcome to Beauty Shop ✨"
 	html := fmt.Sprintf(`
 	<h2>Hello %s 👋</h2>
@@ -91,7 +90,7 @@ func GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-// ForgotPassword sends password reset email
+// ForgotPassword sends password reset email via SendGrid
 func ForgotPassword(c *gin.Context) {
 	type Request struct {
 		Email string `json:"email" binding:"required,email"`
@@ -126,7 +125,7 @@ func ForgotPassword(c *gin.Context) {
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
-	// Queue reset email via Brevo
+	// Queue reset email via SendGrid
 	utils.SendResetPasswordEmail(user.Email, user.Name, resetLink)
 
 	c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
@@ -171,7 +170,7 @@ func ResetPassword(c *gin.Context) {
 	_ = userService.UpdatePassword(user.ID, hashedPassword)
 	_ = userService.ClearResetToken(user.ID)
 
-	// Notify user asynchronously via Brevo
+	// Notify user asynchronously via SendGrid
 	subject := "Your password has been reset"
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
