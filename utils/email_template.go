@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
+	"github.com/go-resty/resty/v2"
 )
 
 // -----------------------------
@@ -20,43 +20,79 @@ type EmailJob struct {
 }
 
 var EmailQueue = make(chan EmailJob, 100)
-var sendgridClient *sendgrid.Client
+var brevoAPIKey string
 
 // -----------------------------
-// Initialize SendGrid
+// Initialize Brevo
 // -----------------------------
-func InitSendGrid() {
-	apiKey := os.Getenv("SENDGRID_API_KEY")
-	if apiKey == "" {
-		log.Println("⚠️ SENDGRID_API_KEY not set")
+func InitBrevo() {
+	brevoAPIKey = os.Getenv("BREVO_API_KEY")
+	if brevoAPIKey == "" {
+		log.Println("⚠️ BREVO_API_KEY not set")
 		return
 	}
-	sendgridClient = sendgrid.NewSendClient(apiKey)
-	log.Println("✅ SendGrid initialized")
+	log.Println("✅ Brevo initialized")
 }
 
 // -----------------------------
-// Send email via SendGrid
+// Send email via Brevo with retries and timeout
 // -----------------------------
-func sendSendGridEmail(toEmail, toName, subject, html string) error {
-	if sendgridClient == nil {
-		return fmt.Errorf("SendGrid client not initialized")
+func sendBrevoEmail(toEmail, toName, subject, html string) error {
+	if brevoAPIKey == "" {
+		return fmt.Errorf("Brevo API key not set")
 	}
 
-	from := mail.NewEmail(os.Getenv("SENDGRID_FROM_NAME"), os.Getenv("SENDGRID_FROM_EMAIL"))
-	to := mail.NewEmail(toName, toEmail)
-	message := mail.NewSingleEmail(from, subject, to, "", html)
+	fromEmail := os.Getenv("BREVO_SENDER_EMAIL")
+	fromName := os.Getenv("BREVO_SENDER_NAME")
 
-	response, err := sendgridClient.Send(message)
-	if err != nil {
-		return err
+	client := resty.New().
+		SetTimeout(30 * time.Second) // ← TLS/network timeout
+
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  fromName,
+			"email": fromEmail,
+		},
+		"to": []map[string]string{
+			{
+				"email": toEmail,
+				"name":  toName,
+			},
+		},
+		"subject":     subject,
+		"htmlContent": html,
 	}
 
-	if response.StatusCode >= 400 {
-		return fmt.Errorf("SendGrid error: %d - %s", response.StatusCode, response.Body)
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		resp, err := client.R().
+			SetHeader("api-key", brevoAPIKey).
+			SetHeader("Content-Type", "application/json").
+			SetBody(payload).
+			Post("https://api.brevo.com/v3/smtp/email")
+
+		if err != nil {
+			lastErr = err
+			log.Printf("⚠️ Attempt %d: Failed to send email to %s: %v\n", attempt, toEmail, err)
+			time.Sleep(time.Duration(attempt) * time.Second) // incremental backoff
+			continue
+		}
+
+		if resp.StatusCode() >= 400 {
+			lastErr = fmt.Errorf("Brevo error: %d - %s", resp.StatusCode(), resp.String())
+			log.Printf("⚠️ Attempt %d: Brevo returned error for %s: %v\n", attempt, toEmail, lastErr)
+			time.Sleep(time.Duration(attempt) * time.Second)
+			continue
+		}
+
+		// Success
+		log.Println("✅ Email sent:", toEmail)
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("failed to send email to %s after %d attempts: last error: %v", toEmail, maxRetries, lastErr)
 }
 
 // -----------------------------
@@ -65,11 +101,9 @@ func sendSendGridEmail(toEmail, toName, subject, html string) error {
 func StartEmailWorker() {
 	go func() {
 		for job := range EmailQueue {
-			err := sendSendGridEmail(job.To, job.ToName, job.Subject, job.HTML)
+			err := sendBrevoEmail(job.To, job.ToName, job.Subject, job.HTML)
 			if err != nil {
-				log.Println("⚠️ Email failed:", job.To, err)
-			} else {
-				log.Println("✅ Email sent:", job.To)
+				log.Println("❌ Email permanently failed:", job.To, err)
 			}
 		}
 	}()

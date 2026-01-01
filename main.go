@@ -30,11 +30,10 @@ func main() {
 	config.ConnectDB()
 	fmt.Println("✅ Database connected")
 
-	// Initialize SendGrid and email worker
-	utils.InitSendGrid()     // initialize SendGrid API client
-	utils.StartEmailWorker() // start asynchronous email queue
-	fmt.Println("✅ SendGrid initialized and email worker started")
-
+	// Initialize Brevo and email worker
+	utils.InitBrevo()
+	utils.StartEmailWorker()
+	fmt.Println("✅ Brevo initialized and email worker started")
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",

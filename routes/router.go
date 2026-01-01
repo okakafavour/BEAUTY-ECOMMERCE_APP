@@ -40,7 +40,7 @@ func SetUpRoutes(r *gin.Engine) {
 	// CONTROLLERS
 	// --------------------------
 	controllers.InitUserController(userRepo)
-	controllers.InitOrderController(orderService, userService) // ✅ pass both
+	controllers.InitOrderController(orderService)
 	controllers.InitPaymentController(orderService, userService)
 	controllers.InitProductController(productService)
 	controllers.InitCartController(cartService)
