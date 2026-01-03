@@ -22,7 +22,6 @@ func InitUserController(userRepo *repositories.UserRepository) {
 	userService = servicesimpl.NewUserService(userRepo)
 }
 
-// Register creates a new user and sends welcome email via SendGrid
 func Register(c *gin.Context) {
 	var user models.User
 
@@ -54,7 +53,6 @@ func Register(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "User registered successfully"})
 }
 
-// Login authenticates user and returns JWT token
 func Login(c *gin.Context) {
 	var input models.User
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -71,7 +69,6 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
 
-// GetProfile returns the current user profile
 func GetProfile(c *gin.Context) {
 	userID, _ := utils.ExtractUserIDAndRole(c)
 
@@ -90,7 +87,6 @@ func GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-// ForgotPassword sends password reset email via SendGrid
 func ForgotPassword(c *gin.Context) {
 	type Request struct {
 		Email string `json:"email" binding:"required,email"`
@@ -125,13 +121,11 @@ func ForgotPassword(c *gin.Context) {
 
 	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, token)
 
-	// Queue reset email via SendGrid
 	utils.SendResetPasswordEmail(user.Email, user.Name, resetLink)
 
 	c.JSON(200, gin.H{"message": "If email exists, reset link sent"})
 }
 
-// ResetPassword handles GET (link click) and POST (update password) requests
 func ResetPassword(c *gin.Context) {
 	if c.Request.Method == http.MethodGet {
 		tokenQuery := c.Query("token")
@@ -170,7 +164,6 @@ func ResetPassword(c *gin.Context) {
 	_ = userService.UpdatePassword(user.ID, hashedPassword)
 	_ = userService.ClearResetToken(user.ID)
 
-	// Notify user asynchronously via SendGrid
 	subject := "Your password has been reset"
 	html := fmt.Sprintf(`
 	<h2>Hello %s,</h2>
