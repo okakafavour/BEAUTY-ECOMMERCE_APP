@@ -34,6 +34,7 @@ func main() {
 	utils.InitBrevo()
 	utils.StartEmailWorker()
 	fmt.Println("✅ Brevo initialized and email worker started")
+
 	// Add temporary test order (optional)
 	utils.AddTestOrder(&utils.Order{
 		ID:              "order_123",
@@ -71,7 +72,7 @@ func main() {
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "1111"
 	}
 	fmt.Println("Server running on PORT:", port)
 
